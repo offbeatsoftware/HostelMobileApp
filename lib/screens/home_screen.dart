@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import 'login_screen.dart';
 
@@ -18,9 +19,13 @@ class HomeScreen extends StatelessWidget {
             key: const Key('signOut'),
             icon: const Icon(Icons.logout),
             tooltip: 'Sign out',
-            onPressed: () => Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const LoginScreen()),
-            ),
+            onPressed: () async {
+              await AuthService.signOut();
+              if (!context.mounted) return;
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+              );
+            },
           ),
         ],
       ),

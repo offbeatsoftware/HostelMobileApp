@@ -1,9 +1,16 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
+import 'firebase_options.dart';
+import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
+import 'services/auth_service.dart';
 import 'theme/app_theme.dart';
 
-void main() {
+Future<void> main() async {
+  // Flutter must be ready before Firebase is started.
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const HostelMobileApp());
 }
 
@@ -16,7 +23,9 @@ class HostelMobileApp extends StatelessWidget {
       title: AppInfo.productName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: const LoginScreen(),
+      // Firebase remembers the sign in, so an admin who is still signed in
+      // goes straight to the home page.
+      home: AuthService.isSignedIn ? const HomeScreen() : const LoginScreen(),
     );
   }
 }
