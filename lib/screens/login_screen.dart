@@ -15,7 +15,9 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
+  final _emailController = TextEditingController(
+    text: AuthService.defaultEmail,
+  );
   final _passwordController = TextEditingController();
   final _passwordFocus = FocusNode();
   String _message = '';
@@ -155,6 +157,8 @@ class _LoginScreenState extends State<LoginScreen> {
             key: const Key('password'),
             controller: _passwordController,
             focusNode: _passwordFocus,
+            // The email is filled in, so the cursor starts in the password box.
+            autofocus: true,
             enabled: !_busy,
             obscureText: _obscure,
             autofillHints: const [AutofillHints.password],

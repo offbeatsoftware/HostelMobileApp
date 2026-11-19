@@ -9,7 +9,7 @@ import 'package:hostel_mobile_app/screens/login_screen.dart';
 import 'package:hostel_mobile_app/services/auth_service.dart';
 
 // The tests use a mock Firebase, so they never reach the real project.
-const adminEmail = 'admin@test.com';
+const adminEmail = AuthService.defaultEmail;
 const adminPassword = 'secret123';
 
 MockFirebaseAuth mockAuth({bool signedIn = false}) => MockFirebaseAuth(
@@ -91,6 +91,7 @@ void main() {
     await tester.pumpWidget(const HostelMobileApp());
     expect(find.byType(LoginScreen), findsOneWidget);
     expect(find.text('Email'), findsOneWidget);
+    expect(find.text(AuthService.defaultEmail), findsOneWidget);
     expect(find.text('Shri Balaji Hostel'), findsOneWidget);
   });
 
