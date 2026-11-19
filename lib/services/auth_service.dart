@@ -5,6 +5,9 @@ import 'package:flutter/foundation.dart';
 /// Admin accounts are created in the Firebase Console
 /// (Authentication > Users), not in the app.
 class AuthService {
+  /// The admin email filled in on the login screen.
+  static const defaultEmail = 'admin@shribalajihostel.com';
+
   static FirebaseAuth? _testAuth;
 
   static FirebaseAuth get _auth => _testAuth ?? FirebaseAuth.instance;
