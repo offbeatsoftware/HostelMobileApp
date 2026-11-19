@@ -5,7 +5,8 @@ import '../theme/app_theme.dart';
 import 'home_screen.dart';
 
 /// Admin sign in, migrated from the desktop LoginForm: the hostel photo fills the
-/// screen and the sign in panel sits at the bottom.
+/// screen and the sign in panel sits at the bottom. The admin signs in with the
+/// email and password of a Firebase Authentication account.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -14,47 +15,65 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _userNameController =
-      TextEditingController(text: AuthService.defaultUserName);
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _passwordFocus = FocusNode();
   String _message = '';
   bool _obscure = true;
+  bool _busy = false;
 
   @override
   void dispose() {
-    _userNameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     _passwordFocus.dispose();
     super.dispose();
   }
 
-  void _signIn() {
-    if (AuthService.isValidLogin(
-        _userNameController.text, _passwordController.text)) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
+  Future<void> _signIn() async {
+    if (_busy) return;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _busy = true;
+      _message = '';
+    });
+
+    final error = await AuthService.signIn(
+      _emailController.text,
+      _passwordController.text,
+    );
+    // The screen may have closed while waiting for Firebase.
+    if (!mounted) return;
+
+    if (error == null) {
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
       return;
     }
-    setState(() => _message = 'Incorrect user name or password.');
+    setState(() {
+      _busy = false;
+      _message = error;
+    });
     _passwordController.clear();
     _passwordFocus.requestFocus();
   }
 
   InputDecoration _fieldDecoration({Widget? suffix}) => InputDecoration(
-        filled: true,
-        fillColor: Colors.white,
-        isDense: true,
-        suffixIcon: suffix,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-      );
+    filled: true,
+    fillColor: Colors.white,
+    isDense: true,
+    suffixIcon: suffix,
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+  );
 
   Widget _label(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(text,
-            style: const TextStyle(color: AppColors.lightText, fontSize: 15)),
-      );
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text(
+      text,
+      style: const TextStyle(color: AppColors.lightText, fontSize: 15),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -70,8 +89,9 @@ class _LoginScreenState extends State<LoginScreen> {
               builder: (context, constraints) => SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: ConstrainedBox(
-                  constraints:
-                      BoxConstraints(minHeight: constraints.maxHeight - 32),
+                  constraints: BoxConstraints(
+                    minHeight: constraints.maxHeight - 32,
+                  ),
                   child: Align(
                     alignment: Alignment.bottomCenter,
                     child: ConstrainedBox(
@@ -116,11 +136,14 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Container(width: 60, height: 2, color: AppColors.gold),
           ),
           const SizedBox(height: 22),
-          _label('User name'),
+          _label('Email'),
           TextField(
-            key: const Key('userName'),
-            controller: _userNameController,
-            maxLength: 50,
+            key: const Key('email'),
+            controller: _emailController,
+            enabled: !_busy,
+            maxLength: 100,
+            keyboardType: TextInputType.emailAddress,
+            autofillHints: const [AutofillHints.email],
             textInputAction: TextInputAction.next,
             autocorrect: false,
             decoration: _fieldDecoration().copyWith(counterText: ''),
@@ -132,9 +155,9 @@ class _LoginScreenState extends State<LoginScreen> {
             key: const Key('password'),
             controller: _passwordController,
             focusNode: _passwordFocus,
-            // The user name is filled in, so the cursor starts in the password box.
-            autofocus: true,
+            enabled: !_busy,
             obscureText: _obscure,
+            autofillHints: const [AutofillHints.password],
             maxLength: 50,
             textInputAction: TextInputAction.done,
             decoration: _fieldDecoration(
@@ -150,9 +173,11 @@ class _LoginScreenState extends State<LoginScreen> {
           if (_message.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: Text(_message,
-                  key: const Key('loginMessage'),
-                  style: const TextStyle(color: AppColors.errorText)),
+              child: Text(
+                _message,
+                key: const Key('loginMessage'),
+                style: const TextStyle(color: AppColors.errorText),
+              ),
             ),
           SizedBox(
             height: 48,
@@ -161,18 +186,34 @@ class _LoginScreenState extends State<LoginScreen> {
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.terracotta,
                 foregroundColor: Colors.white,
+                // Keep the colour while the spinner shows.
+                disabledBackgroundColor: AppColors.terracottaDark,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6)),
-                textStyle:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              onPressed: _signIn,
-              child: const Text('Sign in'),
+              onPressed: _busy ? null : _signIn,
+              child: _busy
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Sign in'),
             ),
           ),
           const SizedBox(height: 14),
-          const Text('Version ${AppInfo.version}',
-              style: TextStyle(color: AppColors.mutedText, fontSize: 12)),
+          const Text(
+            'Version ${AppInfo.version}',
+            style: TextStyle(color: AppColors.mutedText, fontSize: 12),
+          ),
         ],
       ),
     );

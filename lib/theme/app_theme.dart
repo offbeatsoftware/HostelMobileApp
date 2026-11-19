@@ -20,22 +20,24 @@ class AppColors {
   static const errorText = Color(0xFFFF8C78);
 
   // Main screens.
-  static const contentBackground = Color(0xFFF5ECDC); // beige, like the hostel walls
+  static const contentBackground = Color(
+    0xFFF5ECDC,
+  ); // beige, like the hostel walls
   static const textPrimary = Color(0xFF212529);
   static const textMuted = Color(0xFF6C757D);
 }
 
 class AppTheme {
   static ThemeData get light => ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: AppColors.terracotta,
-          primary: AppColors.terracotta,
-        ),
-        scaffoldBackgroundColor: AppColors.contentBackground,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: AppColors.terracotta,
-          foregroundColor: Colors.white,
-        ),
-      );
+    useMaterial3: true,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: AppColors.terracotta,
+      primary: AppColors.terracotta,
+    ),
+    scaffoldBackgroundColor: AppColors.contentBackground,
+    appBarTheme: const AppBarTheme(
+      backgroundColor: AppColors.terracotta,
+      foregroundColor: Colors.white,
+    ),
+  );
 }
