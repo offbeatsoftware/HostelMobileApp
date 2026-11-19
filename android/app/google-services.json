@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1040699841626",
+    "project_id": "hostelmanagement-86380",
+    "storage_bucket": "hostelmanagement-86380.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1040699841626:android:7047586cd6de597d6ccc63",
+        "android_client_info": {
+          "package_name": "com.shribalajihostel.hostel_mobile_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB2Rtc74-c3-WREhtlUawiS0ionbNs-7UE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
