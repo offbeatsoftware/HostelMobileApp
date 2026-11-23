@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import '../services/hostel_selection.dart';
 import '../theme/app_theme.dart';
 import 'feature_screen.dart';
+import 'hostels_screen.dart';
 import 'login_screen.dart';
 
 /// Home page after sign in: the hostel to work on, then the menu of screens,
@@ -36,7 +37,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _refresh() async {
     final next = _selection.load();
-    setState(() => _loading = next);
+    setState(() {
+      _loading = next;
+    });
     try {
       await next;
     } catch (_) {
@@ -76,14 +79,22 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       return;
     }
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => FeatureScreen(
-          item: item,
-          hostel: item.requiresHostel ? hostel : null,
-        ),
+    _openScreen(item, hostel);
+  }
+
+  /// Opens the screen for a menu entry. Migrated screens open their own page;
+  /// the others show what they will do.
+  Future<void> _openScreen(MenuItem item, Hostel? hostel) async {
+    final Widget screen = switch (item.title) {
+      'Hostels' => const HostelsScreen(),
+      _ => FeatureScreen(
+        item: item,
+        hostel: item.requiresHostel ? hostel : null,
       ),
-    );
+    };
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+    // Hostels may have been added, renamed or deleted.
+    if (mounted && item.title == 'Hostels') await _refresh();
   }
 
   @override
