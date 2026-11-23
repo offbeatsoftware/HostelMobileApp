@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:mock_exceptions/mock_exceptions.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hostel_mobile_app/data/hostel_repository.dart';
@@ -46,11 +47,12 @@ Future<void> signIn(WidgetTester tester, String email, String password) async {
 }
 
 void main() {
-  setUp(
-    () => HostelRepository.useInstance(
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    HostelRepository.useInstance(
       FakeHostelRepository(() async => const <Hostel>[]),
-    ),
-  );
+    );
+  });
   tearDown(() {
     AuthService.useAuth(null);
     HostelRepository.useInstance(null);
@@ -146,36 +148,126 @@ void main() {
     },
   );
 
-  group('home page reads the database', () {
+  group('home page: hostel picker and menu', () {
+    const boys = Hostel(hostelId: 1, hostelName: 'Boys Hostel');
+    const girls = Hostel(
+      hostelId: 2,
+      hostelName: 'Girls Hostel',
+      address: 'Sudhowala',
+    );
+
+    void useHostels(List<Hostel> hostels) =>
+        HostelRepository.useInstance(FakeHostelRepository(() async => hostels));
+
     Future<void> openHome(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400); // a phone screen
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
       AuthService.useAuth(mockAuth(signedIn: true));
       await tester.pumpWidget(const HostelMobileApp());
       await tester.pumpAndSettle();
     }
 
-    testWidgets('lists the hostels', (tester) async {
-      HostelRepository.useInstance(
-        FakeHostelRepository(
-          () async => const [
-            Hostel(hostelId: 1, hostelName: 'Shri Balaji Hostel'),
-            Hostel(
-              hostelId: 2,
-              hostelName: 'Girls Hostel',
-              address: 'Sudhowala',
-            ),
-          ],
-        ),
+    String selectedHostel(WidgetTester tester) =>
+        tester.widget<Text>(find.byKey(const Key('selectedHostel'))).data!;
+
+    Future<void> tapTile(WidgetTester tester, String title) async {
+      final tile = find.byKey(Key('menu_$title'));
+      await tester.scrollUntilVisible(
+        tile,
+        200,
+        scrollable: find.byType(Scrollable).first,
       );
+      await tester.tap(tile);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('selects the first hostel and shows all menu sections', (
+      tester,
+    ) async {
+      useHostels([boys, girls]);
       await openHome(tester);
-      expect(find.byKey(const Key('hostelList')), findsOneWidget);
-      expect(find.text('Girls Hostel'), findsOneWidget);
-      expect(find.text('Sudhowala'), findsOneWidget);
+      expect(selectedHostel(tester), 'Boys Hostel');
+      expect(find.widgetWithText(AppBar, 'Boys Hostel'), findsOneWidget);
+      for (final group in ['OVERVIEW', 'HOSTEL', 'STUDENTS']) {
+        expect(find.text(group), findsOneWidget);
+      }
+      expect(find.byKey(const Key('menu_Dashboard')), findsOneWidget);
+      expect(find.byKey(const Key('menu_Students')), findsOneWidget);
     });
 
-    testWidgets('says when there are no hostels yet', (tester) async {
+    testWidgets('opens on the hostel chosen last time', (tester) async {
+      SharedPreferences.setMockInitialValues({'selectedHostelId': 2});
+      useHostels([boys, girls]);
       await openHome(tester);
-      expect(find.text('Connected to the database'), findsOneWidget);
-      expect(find.text('No hostels yet.'), findsOneWidget);
+      expect(selectedHostel(tester), 'Girls Hostel');
+    });
+
+    testWidgets('a hostel that no longer exists falls back to the first', (
+      tester,
+    ) async {
+      SharedPreferences.setMockInitialValues({'selectedHostelId': 99});
+      useHostels([boys, girls]);
+      await openHome(tester);
+      expect(selectedHostel(tester), 'Boys Hostel');
+    });
+
+    testWidgets('Change picks another hostel and remembers it', (tester) async {
+      useHostels([boys, girls]);
+      await openHome(tester);
+      await tester.tap(find.byKey(const Key('changeHostel')));
+      await tester.pumpAndSettle();
+      expect(find.text('Select the hostel to work on'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('hostelOption_2')));
+      await tester.pumpAndSettle();
+
+      expect(selectedHostel(tester), 'Girls Hostel');
+      expect(find.widgetWithText(AppBar, 'Girls Hostel'), findsOneWidget);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getInt('selectedHostelId'), 2);
+    });
+
+    testWidgets('with one hostel there is nothing to change', (tester) async {
+      useHostels([boys]);
+      await openHome(tester);
+      expect(selectedHostel(tester), 'Boys Hostel');
+      expect(find.byKey(const Key('changeHostel')), findsNothing);
+    });
+
+    testWidgets('a menu tile opens its screen for the selected hostel', (
+      tester,
+    ) async {
+      useHostels([boys, girls]);
+      await openHome(tester);
+      await tapTile(tester, 'Students');
+      expect(find.widgetWithText(AppBar, 'Students'), findsOneWidget);
+      expect(find.text('Boys Hostel'), findsOneWidget);
+      expect(find.byKey(const Key('comingSoon')), findsOneWidget);
+    });
+
+    testWidgets('without hostels, hostel screens ask to add one first', (
+      tester,
+    ) async {
+      useHostels([]);
+      await openHome(tester);
+      expect(
+        selectedHostel(tester),
+        'No hostels yet. Add one on the Hostels screen.',
+      );
+
+      // Hostels does not need a hostel, so it opens.
+      await tapTile(tester, 'Hostels');
+      expect(find.widgetWithText(AppBar, 'Hostels'), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      // Students works on a hostel, so it asks to add one.
+      await tapTile(tester, 'Students');
+      expect(
+        find.text('Add a hostel first, on the Hostels screen.'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('comingSoon')), findsNothing);
     });
 
     testWidgets('shows the error when the database cannot be reached', (

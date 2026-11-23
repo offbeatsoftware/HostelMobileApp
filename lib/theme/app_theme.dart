@@ -25,6 +25,8 @@ class AppColors {
   ); // beige, like the hostel walls
   static const textPrimary = Color(0xFF212529);
   static const textMuted = Color(0xFF6C757D);
+  static const groupText = Color(0xFF967D5F); // menu section headings
+  static const tileDisabled = Color(0xFFB8B2A7);
 }
 
 class AppTheme {

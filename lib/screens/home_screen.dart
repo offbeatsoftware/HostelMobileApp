@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 
-import '../data/hostel_repository.dart';
+import '../data/app_menu.dart';
 import '../models/hostel.dart';
+import '../models/menu_item.dart';
 import '../services/auth_service.dart';
+import '../services/hostel_selection.dart';
 import '../theme/app_theme.dart';
+import 'feature_screen.dart';
 import 'login_screen.dart';
 
-/// Home page shown after a successful sign in. For now it lists the hostels
-/// from the Supabase database, which shows the connection works; the desktop
-/// screens (Students, Rooms, Payments and so on) will be added here.
+/// Home page after sign in: the hostel to work on, then the menu of screens,
+/// in the same sections as the desktop's left menu.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -17,19 +19,24 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late Future<List<Hostel>> _hostels;
+  final _selection = HostelSelection();
+  late Future<void> _loading;
 
   @override
   void initState() {
     super.initState();
-    _hostels = _load();
+    _loading = _selection.load();
   }
 
-  Future<List<Hostel>> _load() => HostelRepository.instance.getAll();
+  @override
+  void dispose() {
+    _selection.dispose();
+    super.dispose();
+  }
 
   Future<void> _refresh() async {
-    final next = _load();
-    setState(() => _hostels = next);
+    final next = _selection.load();
+    setState(() => _loading = next);
     try {
       await next;
     } catch (_) {
@@ -45,68 +52,265 @@ class _HomeScreenState extends State<HomeScreen> {
     ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
   }
 
+  Future<void> _pickHostel() async {
+    final chosen = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => _HostelPicker(
+        hostels: _selection.hostels,
+        currentId: _selection.current?.hostelId,
+      ),
+    );
+    if (chosen != null) await _selection.select(chosen);
+  }
+
+  void _open(MenuItem item) {
+    final hostel = _selection.current;
+    if (item.requiresHostel && hostel == null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Add a hostel first, on the Hostels screen.'),
+          ),
+        );
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => FeatureScreen(
+          item: item,
+          hostel: item.requiresHostel ? hostel : null,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(AppInfo.businessName),
-        actions: [
-          IconButton(
-            key: const Key('signOut'),
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sign out',
-            onPressed: _signOut,
+    return ListenableBuilder(
+      listenable: _selection,
+      builder: (context, _) => Scaffold(
+        appBar: AppBar(
+          // Like the desktop, the header shows the hostel being worked on.
+          title: Text(_selection.current?.hostelName ?? AppInfo.businessName),
+          actions: [
+            IconButton(
+              key: const Key('signOut'),
+              icon: const Icon(Icons.logout),
+              tooltip: 'Sign out',
+              onPressed: _signOut,
+            ),
+          ],
+        ),
+        body: RefreshIndicator(
+          onRefresh: _refresh,
+          child: FutureBuilder<void>(
+            future: _loading,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return _Message(
+                  key: const Key('homeError'),
+                  icon: Icons.cloud_off,
+                  title: 'Could not load data from the database',
+                  detail: '${snapshot.error}',
+                );
+              }
+              return _buildMenu(context);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenu(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final columns = width >= 900 ? 4 : (width >= 600 ? 3 : 2);
+    final groups = <String>[];
+    for (final item in appMenu) {
+      if (!groups.contains(item.group)) groups.add(item.group);
+    }
+
+    return ListView(
+      key: const Key('homeMenu'),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      children: [
+        _HostelCard(
+          hostel: _selection.current,
+          canChange: _selection.hostels.length > 1,
+          onChange: _pickHostel,
+        ),
+        for (final group in groups) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 20, 4, 8),
+            child: Text(
+              group,
+              style: const TextStyle(
+                color: AppColors.groupText,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+          GridView.count(
+            crossAxisCount: columns,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 1.5,
+            children: [
+              for (final item in appMenu.where((i) => i.group == group))
+                _MenuTile(
+                  item: item,
+                  enabled: !item.requiresHostel || _selection.current != null,
+                  onTap: () => _open(item),
+                ),
+            ],
           ),
         ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: FutureBuilder<List<Hostel>>(
-          future: _hostels,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return _Message(
-                key: const Key('homeError'),
-                icon: Icons.cloud_off,
-                title: 'Could not load data from the database',
-                detail: '${snapshot.error}',
-              );
-            }
-            final hostels = snapshot.data!;
-            if (hostels.isEmpty) {
-              return const _Message(
-                key: Key('homeEmpty'),
-                icon: Icons.cloud_done,
-                title: 'Connected to the database',
-                detail: 'No hostels yet.',
-              );
-            }
-            return ListView(
-              key: const Key('hostelList'),
-              padding: const EdgeInsets.all(16),
-              children: [
-                Text('Hostels', style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 8),
-                for (final hostel in hostels)
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(
-                        Icons.apartment,
-                        color: AppColors.terracotta,
-                      ),
-                      title: Text(hostel.hostelName),
-                      subtitle: hostel.address == null
-                          ? null
-                          : Text(hostel.address!),
-                    ),
-                  ),
-              ],
-            );
-          },
+      ],
+    );
+  }
+}
+
+/// The selected hostel, with Change when there is more than one.
+class _HostelCard extends StatelessWidget {
+  const _HostelCard({
+    required this.hostel,
+    required this.canChange,
+    required this.onChange,
+  });
+
+  final Hostel? hostel;
+  final bool canChange;
+  final VoidCallback onChange;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      key: const Key('hostelCard'),
+      margin: EdgeInsets.zero,
+      child: ListTile(
+        contentPadding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+        leading: const Icon(
+          Icons.apartment,
+          color: AppColors.terracotta,
+          size: 32,
         ),
+        title: const Text(
+          'Hostel',
+          style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+        ),
+        subtitle: Text(
+          hostel?.hostelName ??
+              'No hostels yet. Add one on the Hostels screen.',
+          key: const Key('selectedHostel'),
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: hostel == null ? 14 : 17,
+            fontWeight: hostel == null ? FontWeight.normal : FontWeight.w600,
+          ),
+        ),
+        trailing: canChange
+            ? TextButton.icon(
+                key: const Key('changeHostel'),
+                onPressed: onChange,
+                icon: const Icon(Icons.swap_horiz),
+                label: const Text('Change'),
+              )
+            : null,
+        onTap: canChange ? onChange : null,
+      ),
+    );
+  }
+}
+
+/// A square button on the menu.
+class _MenuTile extends StatelessWidget {
+  const _MenuTile({
+    required this.item,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final MenuItem item;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colour = enabled ? AppColors.terracotta : AppColors.tileDisabled;
+    return Card(
+      key: Key('menu_${item.title}'),
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(item.icon, size: 32, color: colour),
+              const SizedBox(height: 8),
+              Text(
+                item.title,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: enabled
+                      ? AppColors.textPrimary
+                      : AppColors.tileDisabled,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The list of hostels to choose from, shown from the bottom of the screen.
+class _HostelPicker extends StatelessWidget {
+  const _HostelPicker({required this.hostels, required this.currentId});
+
+  final List<Hostel> hostels;
+  final int? currentId;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: ListView(
+        shrinkWrap: true,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(24, 0, 24, 8),
+            child: Text(
+              'Select the hostel to work on',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+          ),
+          for (final hostel in hostels)
+            ListTile(
+              key: Key('hostelOption_${hostel.hostelId}'),
+              leading: const Icon(Icons.apartment),
+              title: Text(hostel.hostelName),
+              subtitle: hostel.address == null ? null : Text(hostel.address!),
+              trailing: hostel.hostelId == currentId
+                  ? const Icon(Icons.check, color: AppColors.terracotta)
+                  : null,
+              onTap: () => Navigator.of(context).pop(hostel.hostelId),
+            ),
+        ],
       ),
     );
   }
