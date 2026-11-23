@@ -3,7 +3,9 @@ import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:mock_exceptions/mock_exceptions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hostel_mobile_app/data/hostel_repository.dart';
 import 'package:hostel_mobile_app/main.dart';
+import 'package:hostel_mobile_app/models/hostel.dart';
 import 'package:hostel_mobile_app/screens/home_screen.dart';
 import 'package:hostel_mobile_app/screens/login_screen.dart';
 import 'package:hostel_mobile_app/services/auth_service.dart';
@@ -26,6 +28,16 @@ MockFirebaseAuth failingAuth(String code) {
   return auth;
 }
 
+/// Stands in for the Supabase database.
+class FakeHostelRepository extends HostelRepository {
+  FakeHostelRepository(this.result);
+
+  final Future<List<Hostel>> Function() result;
+
+  @override
+  Future<List<Hostel>> getAll() => result();
+}
+
 Future<void> signIn(WidgetTester tester, String email, String password) async {
   await tester.enterText(find.byKey(const Key('email')), email);
   await tester.enterText(find.byKey(const Key('password')), password);
@@ -34,7 +46,15 @@ Future<void> signIn(WidgetTester tester, String email, String password) async {
 }
 
 void main() {
-  tearDown(() => AuthService.useAuth(null));
+  setUp(
+    () => HostelRepository.useInstance(
+      FakeHostelRepository(() async => const <Hostel>[]),
+    ),
+  );
+  tearDown(() {
+    AuthService.useAuth(null);
+    HostelRepository.useInstance(null);
+  });
 
   group('AuthService', () {
     test('signs in with email and password', () async {
@@ -125,4 +145,52 @@ void main() {
       expect(AuthService.isSignedIn, isFalse);
     },
   );
+
+  group('home page reads the database', () {
+    Future<void> openHome(WidgetTester tester) async {
+      AuthService.useAuth(mockAuth(signedIn: true));
+      await tester.pumpWidget(const HostelMobileApp());
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('lists the hostels', (tester) async {
+      HostelRepository.useInstance(
+        FakeHostelRepository(
+          () async => const [
+            Hostel(hostelId: 1, hostelName: 'Shri Balaji Hostel'),
+            Hostel(
+              hostelId: 2,
+              hostelName: 'Girls Hostel',
+              address: 'Sudhowala',
+            ),
+          ],
+        ),
+      );
+      await openHome(tester);
+      expect(find.byKey(const Key('hostelList')), findsOneWidget);
+      expect(find.text('Girls Hostel'), findsOneWidget);
+      expect(find.text('Sudhowala'), findsOneWidget);
+    });
+
+    testWidgets('says when there are no hostels yet', (tester) async {
+      await openHome(tester);
+      expect(find.text('Connected to the database'), findsOneWidget);
+      expect(find.text('No hostels yet.'), findsOneWidget);
+    });
+
+    testWidgets('shows the error when the database cannot be reached', (
+      tester,
+    ) async {
+      HostelRepository.useInstance(
+        FakeHostelRepository(() async => throw Exception('offline')),
+      );
+      await openHome(tester);
+      expect(find.byKey(const Key('homeError')), findsOneWidget);
+      expect(find.textContaining('offline'), findsOneWidget);
+    });
+
+    test('the real repository explains when Supabase is not set up', () {
+      expect(HostelRepository().getAll(), throwsA(isA<StateError>()));
+    });
+  });
 }
