@@ -7,10 +7,10 @@
 /// Never put the secret / service_role key here.
 class SupabaseConfig {
   /// For example https://abcdefghijklmnop.supabase.co
-  static const url = 'PASTE_SUPABASE_PROJECT_URL_HERE';
+  static const url = 'https://kvclcgtktbbxceaxbyzz.supabase.co';
 
   /// Starts with sb_publishable_ (or eyJ for the older anon key).
-  static const publishableKey = 'PASTE_SUPABASE_PUBLISHABLE_KEY_HERE';
+  static const publishableKey = 'sb_publishable_WaDLK6dCcpT_I706jGOngQ_sLgdz3JF';
 
   static bool get isConfigured =>
       url.startsWith('https://') && !publishableKey.startsWith('PASTE_');
