@@ -10,6 +10,7 @@ import '../services/money.dart';
 import '../services/validators.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
+import 'document_actions.dart';
 import 'refund_form_screen.dart';
 
 const _danger = Color(0xFFC0392B);
@@ -279,8 +280,14 @@ class _RefundsScreenState extends State<RefundsScreen> {
           PopupMenuButton<String>(
             key: Key('refundMenu_${r.refundId}'),
             tooltip: 'More',
-            onSelected: (_) => _delete(r),
+            onSelected: (v) => switch (v) {
+              'pdf' => DocumentActions.refundPdf(context, widget.hostel, r),
+              'email' => DocumentActions.refundEmail(context, widget.hostel, r),
+              _ => _delete(r),
+            },
             itemBuilder: (_) => const [
+              PopupMenuItem(value: 'pdf', child: Text('Receipt PDF')),
+              PopupMenuItem(value: 'email', child: Text('Email Receipt')),
               PopupMenuItem(value: 'delete', child: Text('Delete')),
             ],
           ),

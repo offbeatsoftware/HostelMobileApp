@@ -194,19 +194,29 @@ class EditDeleteMenu extends StatelessWidget {
     super.key,
     required this.onEdit,
     required this.onDelete,
+    this.extra = const {},
   });
 
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
+  /// More entries between Edit and Delete: label and what it does.
+  final Map<String, VoidCallback> extra;
+
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
       tooltip: 'More',
-      onSelected: (value) => value == 'edit' ? onEdit() : onDelete(),
-      itemBuilder: (_) => const [
-        PopupMenuItem(value: 'edit', child: Text('Edit')),
-        PopupMenuItem(value: 'delete', child: Text('Delete')),
+      onSelected: (value) => switch (value) {
+        'edit' => onEdit(),
+        'delete' => onDelete(),
+        _ => extra[value]?.call(),
+      },
+      itemBuilder: (_) => [
+        const PopupMenuItem(value: 'edit', child: Text('Edit')),
+        for (final label in extra.keys)
+          PopupMenuItem(value: label, child: Text(label)),
+        const PopupMenuItem(value: 'delete', child: Text('Delete')),
       ],
     );
   }

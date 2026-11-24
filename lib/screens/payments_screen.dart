@@ -10,6 +10,7 @@ import '../services/money.dart';
 import '../services/validators.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
+import 'document_actions.dart';
 import 'payment_form_screen.dart';
 import 'payment_history_screen.dart';
 import 'refunds_screen.dart';
@@ -340,6 +341,15 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                   EditDeleteMenu(
                     key: Key('paymentMenu_${p.paymentId}'),
                     onEdit: () => _form(data, p),
+                    extra: {
+                      'Receipt PDF': () =>
+                          DocumentActions.receiptPdf(context, widget.hostel, p),
+                      'Email Receipt': () => DocumentActions.receiptEmail(
+                        context,
+                        widget.hostel,
+                        p,
+                      ),
+                    },
                     onDelete: () => _delete(p),
                   ),
                 ],
