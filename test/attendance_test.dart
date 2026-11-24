@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hostel_mobile_app/data/allocation_repository.dart';
 import 'package:hostel_mobile_app/data/attendance_repository.dart';
+import 'package:hostel_mobile_app/data/settings_repository.dart';
 import 'package:hostel_mobile_app/data/student_repository.dart';
 import 'package:hostel_mobile_app/models/allocation.dart';
 import 'package:hostel_mobile_app/models/attendance.dart';
@@ -102,6 +103,18 @@ class FixedAllocations extends AllocationRepository {
     int hostelId, {
     bool includeHistory = false,
   }) async => allocations;
+}
+
+class FakeSettings extends SettingsRepository {
+  FakeSettings([this.texts = const {}]);
+
+  final Map<String, String> texts;
+
+  @override
+  Future<Map<String, String>> getWhatsAppTexts() async => texts;
+
+  @override
+  Future<String?> getAdminPhone() async => '99999 11111';
 }
 
 class FakeAttendance extends AttendanceRepository {
@@ -268,6 +281,7 @@ void main() {
       StudentRepository.useInstance(FixedStudents());
       AllocationRepository.useInstance(FixedAllocations());
       AttendanceRepository.useInstance(db);
+      SettingsRepository.useInstance(FakeSettings());
       Launcher.useForTests((uri) async {
         opened.add(uri);
         return true;
@@ -277,6 +291,7 @@ void main() {
       StudentRepository.useInstance(null);
       AllocationRepository.useInstance(null);
       AttendanceRepository.useInstance(null);
+      SettingsRepository.useInstance(null);
       Launcher.useForTests(null);
     });
 

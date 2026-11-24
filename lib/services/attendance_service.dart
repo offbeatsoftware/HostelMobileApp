@@ -2,6 +2,7 @@ import '../models/allocation.dart';
 import '../models/attendance.dart';
 import '../models/student.dart';
 import 'date_format.dart';
+import 'message_text.dart';
 import 'natural_order.dart';
 
 /// Night attendance, as the desktop AttendanceService: the students in a
@@ -126,18 +127,23 @@ class AttendanceService {
     return null;
   }
 
-  /// The desktop's attendance message.
+  /// The desktop's attendance message ([template] is the text saved on the
+  /// desktop, or its default wording).
   static String message({
     required String parentName,
     required String studentName,
     required String hostelName,
     required DateTime date,
     String? hostelPhone,
-  }) =>
-      'Dear $parentName,\nThis is to inform you that $studentName was absent '
-      'from $hostelName on ${formatDate(date)}.\nFor any question, please '
-      'call ${(hostelPhone ?? '').trim().isEmpty ? 'the hostel office' : hostelPhone!.trim()}. '
-      'Thank you.';
+    String? adminPhone,
+    String template = MessageText.defaultAttendanceText,
+  }) => MessageText.fill(template, {
+    'ParentName': parentName,
+    'StudentName': studentName,
+    'HostelName': hostelName,
+    'AttendanceDate': formatDate(date),
+    'HostelPhone': MessageText.contactNumber(hostelPhone, adminPhone),
+  });
 
   /// The WhatsApp link that opens the chat with the message typed in.
   static Uri whatsAppLink(String number, String text) =>

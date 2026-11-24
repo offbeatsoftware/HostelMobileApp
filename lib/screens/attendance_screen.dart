@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/allocation_repository.dart';
 import '../data/attendance_repository.dart';
+import '../data/settings_repository.dart';
 import '../data/student_repository.dart';
 import '../models/allocation.dart';
 import '../models/attendance.dart';
@@ -10,6 +11,7 @@ import '../models/student.dart';
 import '../services/attendance_service.dart';
 import '../services/date_format.dart';
 import '../services/launcher.dart';
+import '../services/message_text.dart';
 import '../services/validators.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
@@ -37,6 +39,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   List<AttendanceEntry> _entries = [];
   final _remarks = <int, TextEditingController>{};
   bool _dirty = false;
+  String _template = MessageText.defaultAttendanceText;
+  String? _adminPhone;
   bool _busy = false;
 
   @override
@@ -56,7 +60,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       AllocationRepository.instance.getForHostel(id, includeHistory: true),
       attendance.getForDate(id, iso),
       attendance.getMessaged(id, AttendanceService.historySubject(date)),
+      SettingsRepository.instance.getWhatsAppTexts(),
+      SettingsRepository.instance.getAdminPhone(),
     ]);
+    _template =
+        (r[4] as Map<String, String>)[MessageText.attendanceKey] ??
+        MessageText.defaultAttendanceText;
+    _adminPhone = r[5] as String?;
     final entries = AttendanceService.buildSheet(
       date: date,
       students: r[0] as List<Student>,
@@ -204,6 +214,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       hostelName: widget.hostel.hostelName,
       date: _date,
       hostelPhone: widget.hostel.phone,
+      adminPhone: _adminPhone,
+      template: _template,
     );
     final opened = await Launcher.open(
       AttendanceService.whatsAppLink(e.parentMobile!, text),

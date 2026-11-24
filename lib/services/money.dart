@@ -26,6 +26,11 @@ class Money {
     return text.substring(0, text.length - 3);
   }
 
+  /// Whole rupees when the amount has no paise (₹85,000), otherwise with
+  /// the paise (₹39,999.50), so figures shown side by side add up.
+  static String formatExact(double amount) =>
+      amount == amount.roundToDouble() ? formatWhole(amount) : format(amount);
+
   /// Short amount for chart axes in the Indian system: ₹850, ₹45K, ₹1.2L,
   /// ₹2.5Cr.
   static String compact(double amount) {
