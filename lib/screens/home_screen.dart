@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import 'colleges_screen.dart';
 import 'feature_screen.dart';
 import 'hostels_screen.dart';
+import 'rooms_screen.dart';
 import 'login_screen.dart';
 
 /// Home page after sign in: the hostel to work on, then the menu of screens,
@@ -89,6 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final Widget screen = switch (item.title) {
       'Hostels' => const HostelsScreen(),
       'Colleges' => CollegesScreen(hostel: hostel!),
+      'Rooms' => RoomsScreen(hostel: hostel!),
       _ => FeatureScreen(
         item: item,
         hostel: item.requiresHostel ? hostel : null,
