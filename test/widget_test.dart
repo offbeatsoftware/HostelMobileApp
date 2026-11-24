@@ -239,10 +239,11 @@ void main() {
     ) async {
       useHostels([boys, girls]);
       await openHome(tester);
-      // Reports is not migrated yet, so it shows what it will do.
-      await tapTile(tester, 'Reports');
-      expect(find.widgetWithText(AppBar, 'Reports'), findsOneWidget);
-      expect(find.text('Boys Hostel'), findsOneWidget);
+      // Email Settings is not migrated yet, so it shows what it will do.
+      await tapTile(tester, 'Email Settings');
+      expect(find.widgetWithText(AppBar, 'Email Settings'), findsOneWidget);
+      // Email Settings are for all hostels, so no hostel is named.
+      expect(find.text('Boys Hostel'), findsNothing);
       expect(find.byKey(const Key('comingSoon')), findsOneWidget);
     });
 
