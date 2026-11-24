@@ -238,4 +238,23 @@ class StudentService {
 
   static Future<void> makeActive(int studentId) =>
       StudentRepository.instance.makeActive(studentId);
+
+  /// Deletes an inactive student for good, with all their fees, payments,
+  /// refunds, room history, attendance and emails; the reason is required.
+  static Future<void> deletePermanently(Student student, String? reason) async {
+    if (student.status != StudentStatus.left) {
+      throw ValidationException(
+        '${student.studentName} is active. Check the student out first; only '
+        'inactive students can be deleted.',
+      );
+    }
+    final why = Validators.clean(reason);
+    if (why.isEmpty) {
+      throw const ValidationException(
+        'Please enter the reason for deleting the student.',
+      );
+    }
+    Validators.checkLength(why, 255, 'Reason');
+    await StudentRepository.instance.deletePermanently(student.studentId, why);
+  }
 }

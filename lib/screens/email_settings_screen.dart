@@ -5,6 +5,7 @@ import '../models/email_settings.dart';
 import '../services/date_format.dart';
 import '../services/email_settings_service.dart';
 import '../services/message_text.dart';
+import '../services/payment_qr_service.dart';
 import '../services/validators.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
@@ -73,6 +74,9 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen>
     ),
   ];
 
+  PaymentQr? _qr;
+  String _qrProblem = '';
+  bool _qrBusy = false;
   String _message = '';
   bool _messageOk = false;
   bool _saving = false;
@@ -106,6 +110,15 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen>
     _port.text = '${s.smtpPort}';
     _whatsAppFee.text = s.whatsAppFeeText;
     _whatsAppAttendance.text = s.whatsAppAttendanceText;
+    try {
+      _qr = await PaymentQrService.get();
+    } catch (_) {
+      // Without the storage script (014) there is no QR image to show.
+      _qr = null;
+      _qrProblem =
+          'The payment QR image could not be loaded. Run '
+          'supabase/014_payment_qr_storage.sql first.';
+    }
     final saved = [s.invoice, s.receipt, s.reminder, s.absence];
     for (var i = 0; i < _templates.length; i++) {
       _templates[i].subject.text = saved[i].subject;
@@ -171,6 +184,119 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen>
       attendanceText: _whatsAppAttendance.text,
     ),
     'The WhatsApp settings could not be saved.',
+  );
+
+  Future<void> _chooseQr() async {
+    if (_qrBusy) return;
+    setState(() {
+      _qrBusy = true;
+      _message = '';
+    });
+    try {
+      final picked = await PaymentQrService.pick();
+      if (picked == null) return;
+      final saved = await PaymentQrService.save(picked.name, picked.bytes);
+      if (!mounted) return;
+      setState(() {
+        _qr = saved;
+        _qrProblem = '';
+        _messageOk = true;
+        _message = 'The payment QR image was saved.';
+      });
+    } on ValidationException catch (e) {
+      if (mounted) {
+        setState(() {
+          _messageOk = false;
+          _message = e.message;
+        });
+      }
+    } catch (e) {
+      if (mounted) showToast(context, 'The QR image could not be saved. $e');
+    } finally {
+      if (mounted) setState(() => _qrBusy = false);
+    }
+  }
+
+  Future<void> _removeQr() async {
+    if (_qrBusy) return;
+    setState(() {
+      _qrBusy = true;
+      _message = '';
+    });
+    try {
+      await PaymentQrService.remove();
+      if (!mounted) return;
+      setState(() {
+        _qr = null;
+        _messageOk = true;
+        _message = 'The payment QR image was removed.';
+      });
+    } catch (e) {
+      if (mounted) showToast(context, 'The QR image could not be removed. $e');
+    } finally {
+      if (mounted) setState(() => _qrBusy = false);
+    }
+  }
+
+  Widget _qrSection() => Column(
+    key: const Key('qrSection'),
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        'Payment QR image',
+        style: TextStyle(fontWeight: FontWeight.w600),
+      ),
+      const SizedBox(height: 8),
+      if (_qr != null)
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Image.memory(
+              _qr!.bytes,
+              key: const Key('qrPreview'),
+              width: 96,
+              height: 96,
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) => const Icon(Icons.broken_image),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(_qr!.name)),
+          ],
+        )
+      else
+        const Text('None', key: Key('qrNone')),
+      if (_qrProblem.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(
+            _qrProblem,
+            key: const Key('qrProblem'),
+            style: const TextStyle(color: _danger),
+          ),
+        ),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 8,
+        children: [
+          OutlinedButton(
+            key: const Key('chooseQr'),
+            onPressed: _qrBusy ? null : _chooseQr,
+            child: const Text('Choose QR...'),
+          ),
+          OutlinedButton(
+            key: const Key('removeQr'),
+            onPressed: _qrBusy || _qr == null ? null : _removeQr,
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      _note(
+        'Saved at once, without the Save button. The Fee Reminders screen '
+        'then offers to send this image after the reminder text, because a '
+        'WhatsApp chat link can only carry text.',
+      ),
+    ],
   );
 
   EmailTemplate _read(int i) =>
@@ -385,6 +511,8 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen>
         ),
       ),
       const SizedBox(height: 12),
+      _qrSection(),
+      const SizedBox(height: 12),
       _note(
         'Fields filled in for each parent: fee reminder '
         '${EmailSettingsService.whatsAppFeeFields.map((f) => '{$f}').join(' ')}'
@@ -392,7 +520,7 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen>
         '${EmailSettingsService.whatsAppAttendanceFields.map((f) => '{$f}').join(' ')}.'
         '\nThe Fee Reminders and Attendance screens open each parent\'s chat '
         'in WhatsApp with this text; you press Send. Meta\'s WhatsApp API and '
-        'the payment QR image are set on the desktop.',
+        'the desktop\'s own copy of the QR image are set on the desktop.',
       ),
     ],
   );
