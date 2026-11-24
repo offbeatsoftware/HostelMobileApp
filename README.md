@@ -29,7 +29,10 @@ One time setup:
 10. Run `supabase/009_dashboard.sql` (Dashboard).
 11. Run `supabase/010_attendance_functions.sql` (Attendance screen).
 12. Run `supabase/011_fee_reminder_functions.sql` (Fee Reminders screen).
-13. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
+13. Run `supabase/012_refund_functions.sql` (Refunds).
+14. Run `supabase/013_delete_student_permanently.sql` (Students > Delete Permanently).
+15. Run `supabase/014_payment_qr_storage.sql` (payment QR image in WhatsApp reminders).
+16. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
 
 ## Run
 ```

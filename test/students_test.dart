@@ -116,6 +116,14 @@ class MemoryStudentRepository extends StudentRepository {
     _rows.remove(s);
   }
 
+  final purged = <Map<String, Object?>>[];
+
+  @override
+  Future<void> deletePermanently(int studentId, String reason) async {
+    purged.add({'id': studentId, 'reason': reason});
+    _rows.removeWhere((s) => s.studentId == studentId);
+  }
+
   @override
   Future<void> makeActive(int studentId) async {
     final i = _rows.indexWhere((s) => s.studentId == studentId);
@@ -513,5 +521,62 @@ void main() {
       expect(find.text('Inactive (0)'), findsOneWidget);
       expect(find.text('Active (3)'), findsOneWidget);
     });
+
+    testWidgets('inactive tab: Delete Permanently needs a reason', (
+      tester,
+    ) async {
+      await openStudents(tester);
+      await tester.tap(find.text('Inactive (1)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('studentMenu_3')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete Permanently'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Every record of this student'),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('confirmPurge')));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Please enter the reason for deleting the student.'),
+        findsOneWidget,
+      );
+      await tester.enterText(find.byKey(const Key('purgeReason')), 'left 2021');
+      await tester.tap(find.byKey(const Key('confirmPurge')));
+      await tester.pumpAndSettle();
+      expect(find.text('Vikas Rawat was deleted permanently.'), findsOneWidget);
+      expect(find.text('Inactive (0)'), findsOneWidget);
+    });
+
+    testWidgets('active students have no Delete Permanently', (tester) async {
+      await openStudents(tester);
+      await tester.tap(find.byKey(const Key('studentMenu_1')));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete Permanently'), findsNothing);
+    });
+  });
+
+  test('service: only inactive students, with a reason', () async {
+    final db = MemoryStudentRepository([ravi, vikas]);
+    StudentRepository.useInstance(db);
+    addTearDown(() => StudentRepository.useInstance(null));
+    await expectLater(
+      StudentService.deletePermanently(ravi, 'why'),
+      throwsA(
+        isA<ValidationException>().having(
+          (e) => e.message,
+          'message',
+          'Ravi Kumar is active. Check the student out first; only inactive '
+              'students can be deleted.',
+        ),
+      ),
+    );
+    await expectLater(
+      StudentService.deletePermanently(vikas, '  '),
+      throwsA(isA<ValidationException>()),
+    );
+    await StudentService.deletePermanently(vikas, ' left ');
+    expect(db.purged.single, {'id': 3, 'reason': 'left'});
   });
 }

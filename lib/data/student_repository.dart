@@ -59,4 +59,14 @@ class StudentRepository {
       params: {'p_student_id': studentId},
     );
   });
+
+  /// Deletes an inactive (Left) student with every record of them
+  /// (supabase/013_delete_student_permanently.sql).
+  Future<void> deletePermanently(int studentId, String reason) =>
+      Database.run(() async {
+        await Database.client.rpc(
+          'delete_student_permanently',
+          params: {'p_student_id': studentId, 'p_reason': reason},
+        );
+      });
 }

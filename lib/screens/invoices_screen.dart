@@ -10,6 +10,7 @@ import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 import 'fee_edit_screen.dart';
 import 'new_year_fees_screen.dart';
+import 'document_actions.dart';
 import 'payment_form_screen.dart';
 
 const _danger = Color(0xFFC0392B);
@@ -280,6 +281,9 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
           ),
           onEditFee: () =>
               _push(FeeEditScreen(invoice: inv, yearText: yearText)),
+          onPdf: () => DocumentActions.invoicePdf(context, widget.hostel, inv),
+          onEmail: () =>
+              DocumentActions.invoiceEmail(context, widget.hostel, inv),
           onDelete: () => _delete(inv),
         );
       },
@@ -293,6 +297,8 @@ class _InvoiceCard extends StatelessWidget {
     required this.yearText,
     required this.onPay,
     required this.onEditFee,
+    required this.onPdf,
+    required this.onEmail,
     required this.onDelete,
   });
 
@@ -300,6 +306,8 @@ class _InvoiceCard extends StatelessWidget {
   final String yearText;
   final VoidCallback onPay;
   final VoidCallback onEditFee;
+  final VoidCallback onPdf;
+  final VoidCallback onEmail;
   final VoidCallback onDelete;
 
   @override
@@ -400,6 +408,8 @@ class _InvoiceCard extends StatelessWidget {
                 onSelected: (v) => switch (v) {
                   'pay' => onPay(),
                   'fee' => onEditFee(),
+                  'pdf' => onPdf(),
+                  'email' => onEmail(),
                   _ => onDelete(),
                 },
                 itemBuilder: (_) => [
@@ -409,6 +419,11 @@ class _InvoiceCard extends StatelessWidget {
                       child: Text('Record Payment'),
                     ),
                   const PopupMenuItem(value: 'fee', child: Text('Edit Fee')),
+                  const PopupMenuItem(value: 'pdf', child: Text('Invoice PDF')),
+                  const PopupMenuItem(
+                    value: 'email',
+                    child: Text('Email Invoice'),
+                  ),
                   const PopupMenuItem(value: 'delete', child: Text('Delete')),
                 ],
               ),

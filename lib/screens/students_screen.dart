@@ -113,6 +113,19 @@ class _StudentsScreenState extends State<StudentsScreen> {
     );
   }
 
+  Future<void> _deletePermanently(Student s) async {
+    final why = await showDialog<String>(
+      context: context,
+      builder: (context) => _DeletePermanentlyDialog(student: s),
+    );
+    if (why == null || !mounted) return;
+    await _run(
+      () => StudentService.deletePermanently(s, why),
+      '${s.studentName} was deleted permanently.',
+      'The student could not be deleted.',
+    );
+  }
+
   Future<void> _makeActive(Student s) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -452,6 +465,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
           onEdit: () => _edit(data.colleges, s),
           onDelete: () => _delete(s),
           onMakeActive: () => _makeActive(s),
+          onDeletePermanently: () => _deletePermanently(s),
         );
       },
     );
@@ -464,11 +478,13 @@ class _StudentCard extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onMakeActive,
+    required this.onDeletePermanently,
   });
 
   final Student student;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onDeletePermanently;
   final VoidCallback onMakeActive;
 
   @override
@@ -557,6 +573,7 @@ class _StudentCard extends StatelessWidget {
                 onSelected: (v) => switch (v) {
                   'edit' => onEdit(),
                   'delete' => onDelete(),
+                  'purge' => onDeletePermanently(),
                   _ => onMakeActive(),
                 },
                 itemBuilder: (_) => [
@@ -570,6 +587,11 @@ class _StudentCard extends StatelessWidget {
                     const PopupMenuItem(
                       value: 'active',
                       child: Text('Make Active'),
+                    ),
+                  if (!s.isActive)
+                    const PopupMenuItem(
+                      value: 'purge',
+                      child: Text('Delete Permanently'),
                     ),
                 ],
               ),
@@ -596,4 +618,89 @@ class _StudentCard extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// Asks for the reason before deleting an inactive student for good
+/// (required); closes with the reason, or null when cancelled.
+class _DeletePermanentlyDialog extends StatefulWidget {
+  const _DeletePermanentlyDialog({required this.student});
+
+  final Student student;
+
+  @override
+  State<_DeletePermanentlyDialog> createState() =>
+      _DeletePermanentlyDialogState();
+}
+
+class _DeletePermanentlyDialogState extends State<_DeletePermanentlyDialog> {
+  final _reason = TextEditingController();
+  String _error = '';
+
+  @override
+  void dispose() {
+    _reason.dispose();
+    super.dispose();
+  }
+
+  void _delete() {
+    if (_reason.text.trim().isEmpty) {
+      setState(() {
+        _error = 'Please enter the reason for deleting the student.';
+      });
+      return;
+    }
+    Navigator.of(context).pop(_reason.text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Delete student permanently'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Delete ${widget.student.studentName} permanently? Every record '
+              'of this student is removed: invoices, payments, refunds, room '
+              'history, attendance and messages. This cannot be undone. Take '
+              'a backup in Supabase first if you may need the records again.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('purgeReason'),
+              controller: _reason,
+              maxLength: 255,
+              decoration: const InputDecoration(
+                labelText: 'Reason',
+                hintText: 'For example: left in 2021, records not needed',
+                counterText: '',
+              ),
+            ),
+            if (_error.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  _error,
+                  style: const TextStyle(color: Color(0xFFC0392B)),
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          key: const Key('confirmPurge'),
+          style: TextButton.styleFrom(foregroundColor: const Color(0xFFC0392B)),
+          onPressed: _delete,
+          child: const Text('Delete Permanently'),
+        ),
+      ],
+    );
+  }
 }

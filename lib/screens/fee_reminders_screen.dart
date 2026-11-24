@@ -12,7 +12,9 @@ import '../services/date_format.dart';
 import '../services/fee_reminder_service.dart';
 import '../services/launcher.dart';
 import '../services/message_text.dart';
+import '../services/document_share.dart';
 import '../services/money.dart';
+import '../services/payment_qr_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 import 'payment_form_screen.dart';
@@ -39,6 +41,7 @@ class _Data {
     this.startMonth,
     this.template,
     this.adminPhone,
+    this.qr,
   );
 
   final List<FeeDue> dues;
@@ -46,6 +49,9 @@ class _Data {
   final int startMonth;
   final String template;
   final String? adminPhone;
+
+  /// The payment QR image, when one is saved (Email Settings).
+  final PaymentQr? qr;
 }
 
 class _FeeRemindersScreenState extends State<FeeRemindersScreen> {
@@ -70,6 +76,12 @@ class _FeeRemindersScreenState extends State<FeeRemindersScreen> {
       SettingsRepository.instance.getAdminPhone(),
     ]);
     final invoices = r[0] as List<Invoice>;
+    PaymentQr? qr;
+    try {
+      qr = await PaymentQrService.get();
+    } catch (_) {
+      // Reminders work without a QR image (or before script 014 is run).
+    }
     return _Data(
       FeeReminderService.dues(
         invoices: invoices,
@@ -81,6 +93,7 @@ class _FeeRemindersScreenState extends State<FeeRemindersScreen> {
       (r[4] as Map<String, String>)[MessageText.feeKey] ??
           MessageText.defaultFeeText,
       r[5] as String?,
+      qr,
     );
   }
 
@@ -127,6 +140,28 @@ class _FeeRemindersScreenState extends State<FeeRemindersScreen> {
                 ),
                 child: Text(text, key: const Key('reminderPreview')),
               ),
+              if (data.qr != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'A chat link can only carry the text. After sending '
+                        'it, send the payment QR image to the same parent.',
+                        style: TextStyle(color: AppColors.textMuted),
+                      ),
+                      const SizedBox(height: 6),
+                      OutlinedButton.icon(
+                        key: const Key('sendQr'),
+                        onPressed: () =>
+                            DocumentShare.image(data.qr!.bytes, data.qr!.name),
+                        icon: const Icon(Icons.qr_code_2, size: 18),
+                        label: const Text('Send QR Image'),
+                      ),
+                    ],
+                  ),
+                ),
               if (due.lastReminder != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 10),

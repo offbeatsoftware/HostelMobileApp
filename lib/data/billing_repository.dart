@@ -167,4 +167,37 @@ class BillingRepository {
           params: {'p_payment_id': paymentId, 'p_reason': reason},
         );
       });
+
+  /// Records a refund (supabase/012_refund_functions.sql); returns its
+  /// number.
+  Future<String> recordRefund({
+    required int invoiceId,
+    required String date,
+    required double amount,
+    required String method,
+    required String reference,
+    required String reason,
+  }) => Database.run(
+    () async =>
+        await Database.client.rpc(
+              'record_refund',
+              params: {
+                'p_invoice_id': invoiceId,
+                'p_date': date,
+                'p_amount': amount,
+                'p_method': method,
+                'p_reference': reference,
+                'p_reason': reason,
+              },
+            )
+            as String,
+  );
+
+  Future<void> deleteRefund(int refundId, String reason) =>
+      Database.run(() async {
+        await Database.client.rpc(
+          'delete_refund',
+          params: {'p_refund_id': refundId, 'p_reason': reason},
+        );
+      });
 }

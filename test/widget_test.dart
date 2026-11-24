@@ -4,6 +4,7 @@ import 'package:mock_exceptions/mock_exceptions.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hostel_mobile_app/data/email_settings_repository.dart';
 import 'package:hostel_mobile_app/data/hostel_repository.dart';
 import 'package:hostel_mobile_app/main.dart';
 import 'package:hostel_mobile_app/models/hostel.dart';
@@ -27,6 +28,12 @@ MockFirebaseAuth failingAuth(String code) {
     Invocation.method(#signInWithEmailAndPassword, null),
   ).on(auth).thenThrow(FirebaseAuthException(code: code));
   return auth;
+}
+
+/// Email Settings with nothing saved yet (the defaults show).
+class EmptyEmailSettings extends EmailSettingsRepository {
+  @override
+  Future<Map<String, String>> getValues() async => {};
 }
 
 /// Stands in for the Supabase database.
@@ -239,12 +246,13 @@ void main() {
     ) async {
       useHostels([boys, girls]);
       await openHome(tester);
-      // Email Settings is not migrated yet, so it shows what it will do.
+      // Email Settings are for all hostels, so no hostel is named.
+      EmailSettingsRepository.useInstance(EmptyEmailSettings());
+      addTearDown(() => EmailSettingsRepository.useInstance(null));
       await tapTile(tester, 'Email Settings');
       expect(find.widgetWithText(AppBar, 'Email Settings'), findsOneWidget);
-      // Email Settings are for all hostels, so no hostel is named.
       expect(find.text('Boys Hostel'), findsNothing);
-      expect(find.byKey(const Key('comingSoon')), findsOneWidget);
+      expect(find.byKey(const Key('gmailTab')), findsOneWidget);
     });
 
     testWidgets('without hostels, hostel screens ask to add one first', (
