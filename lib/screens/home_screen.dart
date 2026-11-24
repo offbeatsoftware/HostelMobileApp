@@ -6,6 +6,7 @@ import '../models/menu_item.dart';
 import '../services/auth_service.dart';
 import '../services/hostel_selection.dart';
 import '../theme/app_theme.dart';
+import 'allocations_screen.dart';
 import 'colleges_screen.dart';
 import 'feature_screen.dart';
 import 'hostels_screen.dart';
@@ -93,6 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
       'Colleges' => CollegesScreen(hostel: hostel!),
       'Rooms' => RoomsScreen(hostel: hostel!),
       'Students' => StudentsScreen(hostel: hostel!),
+      'Room Allocation' => AllocationsScreen(hostel: hostel!),
       _ => FeatureScreen(
         item: item,
         hostel: item.requiresHostel ? hostel : null,
