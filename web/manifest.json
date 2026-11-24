@@ -1,11 +1,11 @@
 {
-    "name": "hostel_mobile_app",
-    "short_name": "hostel_mobile_app",
+    "name": "Shri Balaji Hostel",
+    "short_name": "Shri Balaji",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#C0652B",
+    "theme_color": "#C0652B",
+    "description": "Shri Balaji Hostel management",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
