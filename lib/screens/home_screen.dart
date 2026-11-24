@@ -11,6 +11,7 @@ import 'allocations_screen.dart';
 import 'attendance_screen.dart';
 import 'colleges_screen.dart';
 import 'dashboard_screen.dart';
+import 'email_settings_screen.dart';
 import 'fee_reminders_screen.dart';
 import 'feature_screen.dart';
 import 'hostels_screen.dart';
@@ -109,6 +110,7 @@ class _HomeScreenState extends State<HomeScreen> {
       'Fee Reminders' => FeeRemindersScreen(hostel: hostel!),
       'Reports' => ReportsScreen(hostel: hostel!),
       'Admin Account' => const AdminAccountScreen(),
+      'Email Settings' => const EmailSettingsScreen(),
       _ => FeatureScreen(
         item: item,
         hostel: item.requiresHostel ? hostel : null,
