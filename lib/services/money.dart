@@ -20,6 +20,26 @@ class Money {
     return '${negative ? '-' : ''}₹$grouped.$paise';
   }
 
+  /// Whole rupees for headline figures, for example ₹2,68,500.
+  static String formatWhole(double amount) {
+    final text = format(amount.roundToDouble());
+    return text.substring(0, text.length - 3);
+  }
+
+  /// Short amount for chart axes in the Indian system: ₹850, ₹45K, ₹1.2L,
+  /// ₹2.5Cr.
+  static String compact(double amount) {
+    String one(double v) {
+      final t = v.toStringAsFixed(1);
+      return t.endsWith('.0') ? t.substring(0, t.length - 2) : t;
+    }
+
+    if (amount >= 10000000) return '₹${one(amount / 10000000)}Cr';
+    if (amount >= 100000) return '₹${one(amount / 100000)}L';
+    if (amount >= 1000) return '₹${one(amount / 1000)}K';
+    return '₹${amount.toStringAsFixed(0)}';
+  }
+
   /// Accepts "4500", "4,500.00" or "₹4,500"; null for anything else.
   static double? tryParse(String? text) {
     final cleaned = (text ?? '')

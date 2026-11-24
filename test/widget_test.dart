@@ -239,9 +239,9 @@ void main() {
     ) async {
       useHostels([boys, girls]);
       await openHome(tester);
-      // Attendance is not migrated yet, so it shows what it will do.
-      await tapTile(tester, 'Attendance');
-      expect(find.widgetWithText(AppBar, 'Attendance'), findsOneWidget);
+      // Fee Reminders is not migrated yet, so it shows what it will do.
+      await tapTile(tester, 'Fee Reminders');
+      expect(find.widgetWithText(AppBar, 'Fee Reminders'), findsOneWidget);
       expect(find.text('Boys Hostel'), findsOneWidget);
       expect(find.byKey(const Key('comingSoon')), findsOneWidget);
     });
