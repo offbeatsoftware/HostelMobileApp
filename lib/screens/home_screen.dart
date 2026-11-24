@@ -6,6 +6,7 @@ import '../models/menu_item.dart';
 import '../services/auth_service.dart';
 import '../services/hostel_selection.dart';
 import '../theme/app_theme.dart';
+import 'admin_account_screen.dart';
 import 'allocations_screen.dart';
 import 'attendance_screen.dart';
 import 'colleges_screen.dart';
@@ -107,6 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
       'Payments' => PaymentsScreen(hostel: hostel!),
       'Fee Reminders' => FeeRemindersScreen(hostel: hostel!),
       'Reports' => ReportsScreen(hostel: hostel!),
+      'Admin Account' => const AdminAccountScreen(),
       _ => FeatureScreen(
         item: item,
         hostel: item.requiresHostel ? hostel : null,
