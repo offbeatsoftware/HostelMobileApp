@@ -21,7 +21,8 @@ One time setup:
 3. Copy the admin's User UID from Firebase Console > Authentication > Users into
    `supabase/002_mobile_access.sql`, then run it in the SQL Editor (access rules).
 4. Run `supabase/003_hostel_functions.sql` (Hostels screen: add, edit, delete).
-5. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
+5. Run `supabase/004_college_functions.sql` (Colleges screen).
+6. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
 
 ## Run
 ```

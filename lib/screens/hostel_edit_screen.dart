@@ -4,6 +4,7 @@ import '../models/hostel.dart';
 import '../services/hostel_service.dart';
 import '../services/validators.dart';
 import '../theme/app_theme.dart';
+import '../widgets/common_widgets.dart';
 
 /// Add or edit one hostel (the desktop HostelEditForm).
 /// Closes with true when the hostel was saved.
@@ -67,39 +68,6 @@ class _HostelEditScreenState extends State<HostelEditScreen> {
     });
   }
 
-  Widget _field(
-    String label,
-    TextEditingController controller, {
-    required String key,
-    int maxLength = 150,
-    bool required = false,
-    TextInputType? keyboard,
-    int maxLines = 1,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: TextField(
-        key: Key(key),
-        controller: controller,
-        enabled: !_busy,
-        maxLength: maxLength,
-        maxLines: maxLines,
-        minLines: 1,
-        keyboardType: keyboard,
-        textCapitalization: keyboard == null
-            ? TextCapitalization.words
-            : TextCapitalization.none,
-        decoration: InputDecoration(
-          labelText: required ? '$label *' : label,
-          border: const OutlineInputBorder(),
-          filled: true,
-          fillColor: Colors.white,
-          counterText: '',
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -108,73 +76,44 @@ class _HostelEditScreenState extends State<HostelEditScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _field(
-              'Hostel name',
-              _name,
-              key: 'hostelName',
-              required: true,
+            FormTextField(
+              key: const Key('hostelName'),
+              label: 'Hostel name',
+              controller: _name,
               maxLength: 150,
+              required: true,
+              enabled: !_busy,
             ),
-            _field(
-              'Address',
-              _address,
-              key: 'hostelAddress',
+            FormTextField(
+              key: const Key('hostelAddress'),
+              label: 'Address',
+              controller: _address,
               maxLength: 255,
               maxLines: 3,
               keyboard: TextInputType.streetAddress,
+              enabled: !_busy,
             ),
-            _field(
-              'Phone',
-              _phone,
-              key: 'hostelPhone',
+            FormTextField(
+              key: const Key('hostelPhone'),
+              label: 'Phone',
+              controller: _phone,
               maxLength: 20,
               keyboard: TextInputType.phone,
+              enabled: !_busy,
             ),
-            _field(
-              'Email',
-              _email,
-              key: 'hostelEmail',
+            FormTextField(
+              key: const Key('hostelEmail'),
+              label: 'Email',
+              controller: _email,
               maxLength: 150,
               keyboard: TextInputType.emailAddress,
+              enabled: !_busy,
             ),
-            if (_message.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(
-                  _message,
-                  key: const Key('hostelMessage'),
-                  style: const TextStyle(color: Color(0xFFC0392B)),
-                ),
-              ),
-            SizedBox(
-              height: 48,
-              child: FilledButton(
-                key: const Key('saveHostel'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.terracotta,
-                  disabledBackgroundColor: AppColors.terracottaDark,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-                onPressed: _busy ? null : _save,
-                child: _busy
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text(
-                        'Save',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-              ),
+            FormMessage(_message, key: const Key('hostelMessage')),
+            SaveButton(
+              key: const Key('saveHostel'),
+              busy: _busy,
+              onPressed: _save,
             ),
             const SizedBox(height: 8),
             if (_isNew)

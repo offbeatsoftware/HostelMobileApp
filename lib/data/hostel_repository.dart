@@ -1,9 +1,7 @@
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../config/supabase_config.dart';
 import '../models/hostel.dart';
-import '../services/validators.dart';
+import 'database.dart';
 
 /// Reads and changes hostels in the Supabase database.
 /// Adding, editing and deleting use the database functions in
@@ -19,19 +17,12 @@ class HostelRepository {
   static void useInstance(HostelRepository? repository) =>
       _testInstance = repository;
 
-  SupabaseClient get _db {
-    if (!SupabaseConfig.isConfigured) {
-      throw StateError(
-        'The Supabase URL and key are not set in '
-        'lib/config/supabase_config.dart.',
-      );
-    }
-    return Supabase.instance.client;
-  }
-
   /// All hostels by name, with their numbers of colleges, rooms and students.
   Future<List<Hostel>> getAll() async {
-    final rows = await _db.from('hostel_list').select().order('hostel_name');
+    final rows = await Database.client
+        .from('hostel_list')
+        .select()
+        .order('hostel_name');
     return rows.map(Hostel.fromMap).toList();
   }
 
@@ -42,9 +33,9 @@ class HostelRepository {
     required String address,
     required String phone,
     required String email,
-  }) => _run(
+  }) => Database.run(
     () async =>
-        await _db.rpc(
+        await Database.client.rpc(
               'save_hostel',
               params: {
                 'p_hostel_id': hostelId,
@@ -58,18 +49,10 @@ class HostelRepository {
   );
 
   /// Deletes a hostel that has no students, colleges or rooms.
-  Future<void> delete(int hostelId) => _run(() async {
-    await _db.rpc('delete_hostel', params: {'p_hostel_id': hostelId});
+  Future<void> delete(int hostelId) => Database.run(() async {
+    await Database.client.rpc(
+      'delete_hostel',
+      params: {'p_hostel_id': hostelId},
+    );
   });
-
-  /// The database functions explain refusals (error P0001); those messages
-  /// are shown to the admin as they are.
-  Future<T> _run<T>(Future<T> Function() action) async {
-    try {
-      return await action();
-    } on PostgrestException catch (e) {
-      if (e.code == 'P0001') throw ValidationException(e.message);
-      rethrow;
-    }
-  }
 }

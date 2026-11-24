@@ -6,6 +6,7 @@ import '../models/menu_item.dart';
 import '../services/auth_service.dart';
 import '../services/hostel_selection.dart';
 import '../theme/app_theme.dart';
+import 'colleges_screen.dart';
 import 'feature_screen.dart';
 import 'hostels_screen.dart';
 import 'login_screen.dart';
@@ -87,6 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _openScreen(MenuItem item, Hostel? hostel) async {
     final Widget screen = switch (item.title) {
       'Hostels' => const HostelsScreen(),
+      'Colleges' => CollegesScreen(hostel: hostel!),
       _ => FeatureScreen(
         item: item,
         hostel: item.requiresHostel ? hostel : null,
