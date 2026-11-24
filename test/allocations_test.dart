@@ -192,6 +192,49 @@ class FakeAllocations extends AllocationRepository {
   });
 }
 
+/// A check-in that really puts the student in the room.
+class _CheckInAdds extends FakeAllocations {
+  _CheckInAdds(this.inner, this.added);
+
+  final FakeAllocations inner;
+  final List<RoomAllocation> added;
+
+  @override
+  Future<List<RoomAllocation>> getForHostel(
+    int hostelId, {
+    bool includeHistory = false,
+  }) async => [
+    ...await inner.getForHostel(hostelId, includeHistory: includeHistory),
+    ...added,
+  ];
+
+  @override
+  Future<List<Invoice>> getInvoicesForStudent(int studentId) =>
+      inner.getInvoicesForStudent(studentId);
+
+  @override
+  Future<void> checkIn({
+    required int studentId,
+    required int roomId,
+    required String date,
+    required String remarks,
+    int? bed,
+    double? roomRent,
+    double? transport,
+  }) async {
+    added.add(alloc(50, studentId, 'Karan', roomId, '10', bed ?? 2));
+    await inner.checkIn(
+      studentId: studentId,
+      roomId: roomId,
+      date: date,
+      remarks: remarks,
+      bed: bed,
+      roomRent: roomRent,
+      transport: transport,
+    );
+  }
+}
+
 Invoice invoice(int student, int year, double rent, double paid) => Invoice(
   invoiceId: student * 10 + year % 10,
   invoiceNumber: 'SBH/$year-${year + 1}/000$student',
@@ -425,6 +468,33 @@ void main() {
         'transport': 12000.0,
       });
       expect(find.text('Karan is in room 10, bed 2.'), findsOneWidget);
+    });
+
+    testWidgets('after a check-in the agreement PDF is offered', (
+      tester,
+    ) async {
+      // After the check-in Karan is in room 10, bed 2.
+      final after = <RoomAllocation>[];
+      final adding = _CheckInAdds(db, after);
+      AllocationRepository.useInstance(adding);
+      await open(tester);
+      await tester.tap(find.byKey(const Key('checkIn')));
+      await tester.pumpAndSettle();
+      await choose(tester, 'allocStudent', 'Karan');
+      await tester.tap(find.byKey(const ValueKey('allocRoom_6')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('10 (Double, 1 free bed)').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('allocRent')), '85,000');
+      await save(tester);
+      expect(find.text('Karan is in room 10, bed 2.'), findsOneWidget);
+      expect(
+        find.textContaining('Create the residency agreement PDF now?'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Not now'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('makeAgreement')), findsNothing);
     });
 
     testWidgets('no room for the gender: the reason is shown', (tester) async {

@@ -96,6 +96,10 @@ class Money {
     return parts.join(' ');
   }
 
+  /// "85,000": whole rupees in Indian grouping, without the sign.
+  static String whole(double amount) =>
+      formatWhole(amount).replaceFirst('₹', '');
+
   /// Whole rupees for headline figures, for example ₹2,68,500.
   static String formatWhole(double amount) {
     final text = format(amount.roundToDouble());

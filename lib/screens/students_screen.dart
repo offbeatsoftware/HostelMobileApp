@@ -9,15 +9,18 @@ import '../services/student_service.dart';
 import '../services/validators.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
+import 'agreement_actions.dart';
+import 'agreement_text_screen.dart';
 import 'student_edit_screen.dart';
 
 /// Students of the selected hostel (the desktop Students screen): Active and
 /// Inactive tabs, search, college / course / class filters; add, view and
 /// edit, delete, and make an inactive student active again.
 class StudentsScreen extends StatefulWidget {
-  const StudentsScreen({super.key, required this.hostel});
+  const StudentsScreen({super.key, required this.hostel, this.today});
 
   final Hostel hostel;
+  final DateTime? today;
 
   @override
   State<StudentsScreen> createState() => _StudentsScreenState();
@@ -296,6 +299,18 @@ class _StudentsScreenState extends State<StudentsScreen> {
         return Scaffold(
           appBar: AppBar(
             title: const Text('Students'),
+            actions: [
+              IconButton(
+                key: const Key('agreementText'),
+                tooltip: 'Agreement text',
+                icon: const Icon(Icons.description_outlined),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const AgreementTextScreen(),
+                  ),
+                ),
+              ),
+            ],
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(28),
               child: Padding(
@@ -466,6 +481,18 @@ class _StudentsScreenState extends State<StudentsScreen> {
           onDelete: () => _delete(s),
           onMakeActive: () => _makeActive(s),
           onDeletePermanently: () => _deletePermanently(s),
+          onAgreementPdf: () => AgreementActions.pdf(
+            context,
+            widget.hostel,
+            s,
+            today: widget.today,
+          ),
+          onSignAgreement: () => AgreementActions.sign(
+            context,
+            widget.hostel,
+            s,
+            today: widget.today,
+          ),
         );
       },
     );
@@ -479,12 +506,16 @@ class _StudentCard extends StatelessWidget {
     required this.onDelete,
     required this.onMakeActive,
     required this.onDeletePermanently,
+    required this.onAgreementPdf,
+    required this.onSignAgreement,
   });
 
   final Student student;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onDeletePermanently;
+  final VoidCallback onAgreementPdf;
+  final VoidCallback onSignAgreement;
   final VoidCallback onMakeActive;
 
   @override
@@ -574,12 +605,22 @@ class _StudentCard extends StatelessWidget {
                   'edit' => onEdit(),
                   'delete' => onDelete(),
                   'purge' => onDeletePermanently(),
+                  'agreement' => onAgreementPdf(),
+                  'sign' => onSignAgreement(),
                   _ => onMakeActive(),
                 },
                 itemBuilder: (_) => [
                   const PopupMenuItem(
                     value: 'edit',
                     child: Text('View / Edit'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'agreement',
+                    child: Text('Agreement PDF'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'sign',
+                    child: Text('Sign Agreement'),
                   ),
                   if (s.isActive)
                     const PopupMenuItem(value: 'delete', child: Text('Delete'))

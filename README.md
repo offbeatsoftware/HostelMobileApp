@@ -34,7 +34,8 @@ One time setup:
 15. Run `supabase/014_payment_qr_storage.sql` (payment QR image in WhatsApp reminders).
 16. Run `supabase/015_email_sending.sql` (sending emails from the phone).
 17. Deploy the `send-email` function (see "Sending emails from the phone" below).
-18. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
+18. Run `supabase/016_agreement.sql` (student agreement and its signatures).
+19. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
 
 ## Sending emails from the phone
 
