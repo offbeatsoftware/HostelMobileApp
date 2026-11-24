@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/invoice.dart';
 import '../models/payment.dart';
+import '../models/refund.dart';
 import 'database.dart';
 
 /// Invoices and payments in the Supabase database, using the functions in
@@ -37,6 +38,16 @@ class BillingRepository {
         .order('payment_date', ascending: false)
         .order('payment_id', ascending: false);
     return rows.map(Payment.fromMap).toList();
+  }
+
+  /// The hostel's refunds (supabase/009_dashboard.sql), newest first.
+  Future<List<Refund>> getRefunds(int hostelId) async {
+    final rows = await Database.client
+        .from('refund_list')
+        .select()
+        .eq('hostel_id', hostelId)
+        .order('refund_date', ascending: false);
+    return rows.map(Refund.fromMap).toList();
   }
 
   /// Every correction and deletion of the hostel's payments, newest first.
