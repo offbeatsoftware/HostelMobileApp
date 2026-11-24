@@ -11,6 +11,7 @@ import '../services/allocation_service.dart';
 import '../services/date_format.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
+import 'agreement_actions.dart';
 import 'allocation_form_screen.dart';
 
 /// Room Allocation (the desktop screen): who is in which room and bed;
@@ -104,7 +105,56 @@ class _AllocationsScreenState extends State<AllocationsScreen> {
     );
     if (done != null && mounted) {
       showToast(context, done);
+      final before = {for (final a in data.current) a.studentId};
       await _reload();
+      if (action == AllocationAction.checkIn) await _offerAgreement(before);
+    }
+  }
+
+  /// After a check-in: offers the residency agreement PDF of the student
+  /// who is now in a room.
+  Future<void> _offerAgreement(Set<int> before) async {
+    _Data fresh;
+    try {
+      fresh = await _data;
+    } catch (_) {
+      return;
+    }
+    final added = fresh.current
+        .where((a) => !before.contains(a.studentId))
+        .firstOrNull;
+    if (added == null || !mounted) return;
+    final student = fresh.students
+        .where((s) => s.studentId == added.studentId)
+        .firstOrNull;
+    if (student == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        content: Text(
+          '${added.studentName} is in room ${added.roomAndBed}.\n\n'
+          'Create the residency agreement PDF now?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Not now'),
+          ),
+          TextButton(
+            key: const Key('makeAgreement'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Create PDF'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && mounted) {
+      await AgreementActions.pdf(
+        context,
+        widget.hostel,
+        student,
+        today: widget.today,
+      );
     }
   }
 

@@ -1,5 +1,6 @@
 import '../data/student_repository.dart';
 import '../models/student.dart';
+import 'agreement_signature_service.dart';
 import 'date_format.dart';
 import 'validators.dart';
 
@@ -256,5 +257,11 @@ class StudentService {
     }
     Validators.checkLength(why, 255, 'Reason');
     await StudentRepository.instance.deletePermanently(student.studentId, why);
+    // The signatures are files; the database row went with the student.
+    try {
+      await AgreementSignatureService.deleteForStudent(student.studentId);
+    } catch (_) {
+      // The student is deleted; leftover signature files are harmless.
+    }
   }
 }

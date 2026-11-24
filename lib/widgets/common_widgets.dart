@@ -159,10 +159,16 @@ class FormMessage extends StatelessWidget {
 
 /// The terracotta Save button, with a spinner while saving.
 class SaveButton extends StatelessWidget {
-  const SaveButton({super.key, required this.busy, required this.onPressed});
+  const SaveButton({
+    super.key,
+    required this.busy,
+    required this.onPressed,
+    this.label = 'Save',
+  });
 
   final bool busy;
   final VoidCallback onPressed;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -184,9 +190,12 @@ class SaveButton extends StatelessWidget {
                   color: Colors.white,
                 ),
               )
-            : const Text(
-                'Save',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            : Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
       ),
     );
