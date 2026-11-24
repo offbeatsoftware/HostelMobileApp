@@ -166,13 +166,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
       key: const Key('dashboard'),
       padding: const EdgeInsets.all(16),
       children: [
-        GridView.count(
-          crossAxisCount: columns,
+        GridView(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
-          childAspectRatio: 1.7,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            // Tall enough for caption, figure and note at the phone's text
+            // size (larger font settings get taller tiles).
+            mainAxisExtent: MediaQuery.textScalerOf(context).scale(108),
+          ),
           children: [for (final t in tiles) _TileCard(t)],
         ),
         const SizedBox(height: 12),

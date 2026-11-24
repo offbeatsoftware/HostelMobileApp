@@ -273,4 +273,38 @@ void main() {
     expect(find.text('02 Nov   Ravi'), findsOneWidget);
     expect(find.text('01 Aug   Amit'), findsOneWidget);
   });
+
+  testWidgets('tiles fit with the phone text set 30% larger', (tester) async {
+    StudentRepository.useInstance(FixedStudents());
+    RoomRepository.useInstance(FixedRooms());
+    BillingRepository.useInstance(FixedBilling());
+    AllocationRepository.useInstance(FixedAllocations());
+    addTearDown(() {
+      StudentRepository.useInstance(null);
+      RoomRepository.useInstance(null);
+      BillingRepository.useInstance(null);
+      AllocationRepository.useInstance(null);
+    });
+    tester.view.physicalSize = const Size(1080, 5400);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: const TextScaler.linear(1.3)),
+          child: child!,
+        ),
+        home: DashboardScreen(
+          hostel: const Hostel(hostelId: 1, hostelName: 'Boys Hostel'),
+          today: today,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('tile_Pending')), findsOneWidget);
+  });
 }
