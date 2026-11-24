@@ -10,6 +10,7 @@ import 'colleges_screen.dart';
 import 'feature_screen.dart';
 import 'hostels_screen.dart';
 import 'rooms_screen.dart';
+import 'students_screen.dart';
 import 'login_screen.dart';
 
 /// Home page after sign in: the hostel to work on, then the menu of screens,
@@ -91,6 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
       'Hostels' => const HostelsScreen(),
       'Colleges' => CollegesScreen(hostel: hostel!),
       'Rooms' => RoomsScreen(hostel: hostel!),
+      'Students' => StudentsScreen(hostel: hostel!),
       _ => FeatureScreen(
         item: item,
         hostel: item.requiresHostel ? hostel : null,

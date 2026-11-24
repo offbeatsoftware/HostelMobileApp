@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/date_format.dart';
 import '../theme/app_theme.dart';
 
 const _danger = Color(0xFFC0392B);
@@ -207,6 +208,141 @@ class EditDeleteMenu extends StatelessWidget {
         PopupMenuItem(value: 'edit', child: Text('Edit')),
         PopupMenuItem(value: 'delete', child: Text('Delete')),
       ],
+    );
+  }
+}
+
+/// A date box that opens the calendar. With [optional] it can be left empty
+/// and has a clear button.
+class DateField extends StatelessWidget {
+  const DateField({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    required this.firstDate,
+    required this.lastDate,
+    this.optional = false,
+    this.required = false,
+    this.enabled = true,
+    this.initialPickerDate,
+  });
+
+  final String label;
+  final DateTime? value;
+  final ValueChanged<DateTime?> onChanged;
+  final DateTime firstDate;
+  final DateTime lastDate;
+  final bool optional;
+  final bool required;
+  final bool enabled;
+
+  /// Where the calendar opens when the box is empty.
+  final DateTime? initialPickerDate;
+
+  Future<void> _pick(BuildContext context) async {
+    var initial = value ?? initialPickerDate ?? DateTime.now();
+    if (initial.isBefore(firstDate)) initial = firstDate;
+    if (initial.isAfter(lastDate)) initial = lastDate;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: firstDate,
+      lastDate: lastDate,
+      helpText: label.toUpperCase(),
+    );
+    if (picked != null) onChanged(picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: InkWell(
+        onTap: enabled ? () => _pick(context) : null,
+        child: InputDecorator(
+          isEmpty: value == null,
+          decoration: InputDecoration(
+            labelText: required ? '$label *' : label,
+            border: const OutlineInputBorder(),
+            filled: true,
+            fillColor: Colors.white,
+            enabled: enabled,
+            suffixIcon: optional && value != null && enabled
+                ? IconButton(
+                    tooltip: 'Clear $label',
+                    icon: const Icon(Icons.clear),
+                    onPressed: () => onChanged(null),
+                  )
+                : const Icon(Icons.calendar_today_outlined),
+          ),
+          child: Text(value == null ? '' : _format(value!)),
+        ),
+      ),
+    );
+  }
+
+  static String _format(DateTime d) => formatDate(d);
+}
+
+/// A drop-down box for the add and edit forms.
+class FormDropdown<T> extends StatelessWidget {
+  const FormDropdown({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+    this.required = false,
+    this.enabled = true,
+  });
+
+  final String label;
+  final T? value;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?> onChanged;
+  final bool required;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DropdownButtonFormField<T>(
+        initialValue: value,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: required ? '$label *' : label,
+          border: const OutlineInputBorder(),
+          filled: true,
+          fillColor: Colors.white,
+        ),
+        items: items,
+        onChanged: enabled ? onChanged : null,
+      ),
+    );
+  }
+}
+
+/// A heading between groups of fields in a long form.
+class FormSection extends StatelessWidget {
+  const FormSection(this.title, {super.key});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 12, 2, 10),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          color: AppColors.groupText,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1,
+        ),
+      ),
     );
   }
 }

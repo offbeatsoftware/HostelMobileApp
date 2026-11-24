@@ -23,7 +23,8 @@ One time setup:
 4. Run `supabase/003_hostel_functions.sql` (Hostels screen: add, edit, delete).
 5. Run `supabase/004_college_functions.sql` (Colleges screen).
 6. Run `supabase/005_room_functions.sql` (Rooms screen).
-7. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
+7. Run `supabase/006_student_functions.sql` (Students screen).
+8. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
 
 ## Run
 ```
