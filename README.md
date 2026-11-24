@@ -28,7 +28,8 @@ One time setup:
 9. Run `supabase/008_billing_functions.sql` (Invoices and Payments screens).
 10. Run `supabase/009_dashboard.sql` (Dashboard).
 11. Run `supabase/010_attendance_functions.sql` (Attendance screen).
-12. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
+12. Run `supabase/011_fee_reminder_functions.sql` (Fee Reminders screen).
+13. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
 
 ## Run
 ```

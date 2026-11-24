@@ -10,6 +10,7 @@ import 'allocations_screen.dart';
 import 'attendance_screen.dart';
 import 'colleges_screen.dart';
 import 'dashboard_screen.dart';
+import 'fee_reminders_screen.dart';
 import 'feature_screen.dart';
 import 'hostels_screen.dart';
 import 'invoices_screen.dart';
@@ -103,6 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
       'Room Allocation' => AllocationsScreen(hostel: hostel!),
       'Invoices' => InvoicesScreen(hostel: hostel!),
       'Payments' => PaymentsScreen(hostel: hostel!),
+      'Fee Reminders' => FeeRemindersScreen(hostel: hostel!),
       _ => FeatureScreen(
         item: item,
         hostel: item.requiresHostel ? hostel : null,
