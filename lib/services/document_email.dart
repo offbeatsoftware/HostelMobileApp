@@ -29,6 +29,10 @@ class EmailDraft {
     required this.copyTo,
     required this.subject,
     required this.body,
+    this.type = '',
+    this.studentId = 0,
+    this.invoiceIds = const [],
+    this.attendanceDate,
   });
 
   final String to;
@@ -40,6 +44,13 @@ class EmailDraft {
   final String copyTo;
   final String subject;
   final String body;
+
+  /// For the email history: the kind of email (EmailType), the student, the
+  /// invoices it is about, and for an absence the night (yyyy-mm-dd).
+  final String type;
+  final int studentId;
+  final List<int> invoiceIds;
+  final String? attendanceDate;
 }
 
 /// The invoice, receipt and refund receipt emails, with the texts of Email
@@ -113,8 +124,16 @@ class DocumentEmail {
     EmailTemplate template,
     Map<String, String> values,
     EmailContact contact,
-    String adminEmail,
-  ) => EmailDraft(
+    String adminEmail, {
+    required String type,
+    required int studentId,
+    List<int> invoiceIds = const [],
+    String? attendanceDate,
+  }) => EmailDraft(
+    type: type,
+    studentId: studentId,
+    invoiceIds: invoiceIds,
+    attendanceDate: attendanceDate,
     to: contact.email,
     relation: contact.relation,
     parentName: contact.name,
@@ -145,7 +164,15 @@ class DocumentEmail {
     values['Amount'] = Money.rupees(i.totalAmount);
     values['PaidAmount'] = Money.rupees(i.paidAmount);
     values['Pending'] = Money.rupees(i.pendingAmount);
-    return _build(settings.invoice, values, contact, values['AdminEmail']!);
+    return _build(
+      settings.invoice,
+      values,
+      contact,
+      values['AdminEmail']!,
+      type: EmailType.invoice,
+      studentId: d.student.studentId,
+      invoiceIds: [i.invoiceId],
+    );
   }
 
   static Future<EmailDraft> receipt(ReceiptPrintData d) async {
@@ -169,7 +196,15 @@ class DocumentEmail {
     values['PaymentMethod'] = p.paymentMethod;
     values['TotalAmount'] = Money.rupees(d.invoice.totalAmount);
     values['Pending'] = Money.rupees(d.invoice.pendingAmount);
-    return _build(settings.receipt, values, contact, values['AdminEmail']!);
+    return _build(
+      settings.receipt,
+      values,
+      contact,
+      values['AdminEmail']!,
+      type: EmailType.receipt,
+      studentId: d.student.studentId,
+      invoiceIds: [d.invoice.invoiceId],
+    );
   }
 
   static Future<EmailDraft> refund(RefundPrintData d) async {
@@ -190,7 +225,15 @@ class DocumentEmail {
       d.invoice.academicYear,
       d.startMonth,
     );
-    return _build(refundTemplate, values, contact, values['AdminEmail']!);
+    return _build(
+      refundTemplate,
+      values,
+      contact,
+      values['AdminEmail']!,
+      type: EmailType.refund,
+      studentId: d.student.studentId,
+      invoiceIds: [d.invoice.invoiceId],
+    );
   }
 
   /// Who receives attendance emails: the mother, or the father when the
@@ -252,7 +295,15 @@ class DocumentEmail {
       data.fold(0.0, (t, d) => t + d.invoice.paidAmount),
     );
     values['Pending'] = Money.rupees(pending);
-    return _build(settings.reminder, values, contact, values['AdminEmail']!);
+    return _build(
+      settings.reminder,
+      values,
+      contact,
+      values['AdminEmail']!,
+      type: EmailType.dueReminder,
+      studentId: first.student.studentId,
+      invoiceIds: [for (final d in data) d.invoice.invoiceId],
+    );
   }
 
   /// The absence email for a night's attendance.
@@ -279,6 +330,14 @@ class DocumentEmail {
     values['AttendanceDate'] = formatDate(date);
     values['RoomNumber'] = roomNumber;
     values['Remarks'] = _t(remarks);
-    return _build(settings.absence, values, contact, values['AdminEmail']!);
+    return _build(
+      settings.absence,
+      values,
+      contact,
+      values['AdminEmail']!,
+      type: EmailType.absence,
+      studentId: student.studentId,
+      attendanceDate: isoDate(date),
+    );
   }
 }

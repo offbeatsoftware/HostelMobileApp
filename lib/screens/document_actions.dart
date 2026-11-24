@@ -11,6 +11,7 @@ import '../services/document_email.dart';
 import '../services/document_pdf.dart';
 import '../services/fee_reminder_service.dart';
 import '../services/document_share.dart';
+import '../services/email_sender.dart';
 import '../services/validators.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
@@ -172,30 +173,116 @@ class DocumentActions {
     String fileName,
   ) => _shareFiles(context, draft, [(name: fileName, bytes: pdf)]);
 
-  /// Shows who the email is for and its text, then shares it with the files.
+  /// Shows who the email is for and its text. The admin sends it from the
+  /// phone (when the Gmail app password is saved) or opens it in the mail app.
   static Future<void> _shareFiles(
     BuildContext context,
     EmailDraft draft,
     List<SharedFile> files,
   ) async {
-    final ok = await showDialog<bool>(
+    final canSend = await EmailSender.isConfigured();
+    if (!context.mounted) return;
+    final choice = await showDialog<_EmailChoice>(
       context: context,
       builder: (_) => _EmailDraftDialog(
         draft: draft,
         fileNames: [for (final f in files) f.name],
+        canSend: canSend,
       ),
     );
-    if (ok == true) {
+    if (choice == null || !context.mounted) return;
+    if (choice == _EmailChoice.mailApp) {
+      await DocumentShare.emailFiles(files, draft.subject, draft.body);
+    } else {
+      await _sendNow(context, draft, files);
+    }
+  }
+
+  static Future<void> _sendNow(
+    BuildContext context,
+    EmailDraft draft,
+    List<SharedFile> files,
+  ) async {
+    // A blocking "Sending" box while Gmail is contacted.
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: AlertDialog(
+          key: Key('sendingEmail'),
+          content: Row(
+            children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 3),
+              ),
+              SizedBox(width: 16),
+              Expanded(child: Text('Sending the email...')),
+            ],
+          ),
+        ),
+      ),
+    );
+    String? problem;
+    try {
+      await EmailSender.send(draft, files);
+    } on ValidationException catch (e) {
+      problem = e.message;
+    } catch (e) {
+      problem = 'The email could not be sent. $e';
+    }
+    if (!context.mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+    if (problem == null) {
+      final copy = draft.copyTo.isEmpty
+          ? ''
+          : ' A copy went to ${draft.copyTo}.';
+      showToast(
+        context,
+        'The email was sent to ${draft.parentName} (${draft.to}).$copy',
+      );
+      return;
+    }
+    final again = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('The email could not be sent'),
+        content: Text(problem!, key: const Key('sendProblem')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Close'),
+          ),
+          TextButton(
+            key: const Key('useMailApp'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Open Mail App'),
+          ),
+        ],
+      ),
+    );
+    if (again == true) {
       await DocumentShare.emailFiles(files, draft.subject, draft.body);
     }
   }
 }
 
+enum _EmailChoice { send, mailApp }
+
 class _EmailDraftDialog extends StatelessWidget {
-  const _EmailDraftDialog({required this.draft, required this.fileNames});
+  const _EmailDraftDialog({
+    required this.draft,
+    required this.fileNames,
+    required this.canSend,
+  });
 
   final EmailDraft draft;
   final List<String> fileNames;
+
+  /// The Gmail app password is saved, so the phone can send the email.
+  final bool canSend;
 
   @override
   Widget build(BuildContext context) {
@@ -258,24 +345,39 @@ class _EmailDraftDialog extends StatelessWidget {
               for (final n in fileNames) Text(n),
             ],
             const SizedBox(height: 12),
-            const Text(
-              'Choose your mail app on the next screen, then paste the '
-              'address (copy it first) and send.',
-              style: TextStyle(color: AppColors.textMuted),
+            Text(
+              canSend
+                  ? 'Send Email sends it from the hostel\'s Gmail account '
+                        'and keeps it in the email history. Mail App opens '
+                        'it in your own mail app instead.'
+                  : 'To send it straight from the phone, enter the Gmail '
+                        'app password in Email Settings. For now, choose your '
+                        'mail app on the next screen, paste the address '
+                        '(copy it first) and send.',
+              key: const Key('draftHelp'),
+              style: const TextStyle(color: AppColors.textMuted),
             ),
           ],
         ),
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
+          onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
+        if (canSend)
+          TextButton(
+            key: const Key('shareEmail'),
+            onPressed: () => Navigator.of(context).pop(_EmailChoice.mailApp),
+            child: const Text('Mail App'),
+          ),
         FilledButton(
-          key: const Key('shareEmail'),
+          key: Key(canSend ? 'sendEmail' : 'shareEmail'),
           style: FilledButton.styleFrom(backgroundColor: AppColors.terracotta),
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Open Mail App'),
+          onPressed: () => Navigator.of(
+            context,
+          ).pop(canSend ? _EmailChoice.send : _EmailChoice.mailApp),
+          child: Text(canSend ? 'Send Email' : 'Open Mail App'),
         ),
       ],
     );
