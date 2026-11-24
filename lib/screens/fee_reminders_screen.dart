@@ -12,11 +12,13 @@ import '../services/date_format.dart';
 import '../services/fee_reminder_service.dart';
 import '../services/launcher.dart';
 import '../services/message_text.dart';
+import '../services/document_email.dart';
 import '../services/document_share.dart';
 import '../services/money.dart';
 import '../services/payment_qr_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
+import 'document_actions.dart';
 import 'payment_form_screen.dart';
 
 const _danger = Color(0xFFC0392B);
@@ -42,6 +44,7 @@ class _Data {
     this.template,
     this.adminPhone,
     this.qr,
+    this.students,
   );
 
   final List<FeeDue> dues;
@@ -52,6 +55,7 @@ class _Data {
 
   /// The payment QR image, when one is saved (Email Settings).
   final PaymentQr? qr;
+  final List<Student> students;
 }
 
 class _FeeRemindersScreenState extends State<FeeRemindersScreen> {
@@ -76,6 +80,7 @@ class _FeeRemindersScreenState extends State<FeeRemindersScreen> {
       SettingsRepository.instance.getAdminPhone(),
     ]);
     final invoices = r[0] as List<Invoice>;
+    final students = r[1] as List<Student>;
     PaymentQr? qr;
     try {
       qr = await PaymentQrService.get();
@@ -85,7 +90,7 @@ class _FeeRemindersScreenState extends State<FeeRemindersScreen> {
     return _Data(
       FeeReminderService.dues(
         invoices: invoices,
-        students: r[1] as List<Student>,
+        students: students,
         lastReminders: r[2] as Map<int, DateTime>,
       ),
       invoices,
@@ -94,6 +99,7 @@ class _FeeRemindersScreenState extends State<FeeRemindersScreen> {
           MessageText.defaultFeeText,
       r[5] as String?,
       qr,
+      students,
     );
   }
 
@@ -327,6 +333,11 @@ class _FeeRemindersScreenState extends State<FeeRemindersScreen> {
     );
   }
 
+  EmailContact? _emailContact(_Data data, FeeDue d) {
+    final s = data.students.where((x) => x.studentId == d.studentId);
+    return s.isEmpty ? null : DocumentEmail.feeContact(s.first);
+  }
+
   Widget _card(_Data data, FeeDue d) {
     Widget amount(String label, double v, {Color? color}) => Expanded(
       child: Column(
@@ -413,6 +424,17 @@ class _FeeRemindersScreenState extends State<FeeRemindersScreen> {
                     onPressed: () => _pay(data, d),
                     child: const Text('Record Payment'),
                   ),
+                  if (_emailContact(data, d) != null)
+                    OutlinedButton.icon(
+                      key: Key('email_${d.studentId}'),
+                      onPressed: () => DocumentActions.reminderEmail(
+                        context,
+                        widget.hostel,
+                        d,
+                      ),
+                      icon: const Icon(Icons.email_outlined, size: 18),
+                      label: const Text('Email'),
+                    ),
                   if (d.parentMobile != null)
                     FilledButton.icon(
                       key: Key('remind_${d.studentId}'),

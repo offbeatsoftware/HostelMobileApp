@@ -1,6 +1,16 @@
+import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hostel_mobile_app/data/admin_repository.dart';
+import 'package:hostel_mobile_app/data/allocation_repository.dart';
 import 'package:hostel_mobile_app/data/billing_repository.dart';
+import 'package:hostel_mobile_app/data/email_settings_repository.dart';
+import 'package:hostel_mobile_app/models/admin_user.dart';
+import 'package:hostel_mobile_app/models/allocation.dart';
+import 'package:hostel_mobile_app/models/payment.dart';
+import 'package:hostel_mobile_app/models/refund.dart';
+import 'package:hostel_mobile_app/services/auth_service.dart';
+import 'package:hostel_mobile_app/services/document_share.dart';
 import 'package:hostel_mobile_app/data/reminder_repository.dart';
 import 'package:hostel_mobile_app/data/settings_repository.dart';
 import 'package:hostel_mobile_app/data/student_repository.dart';
@@ -25,6 +35,7 @@ Student st(
   String? fatherMobile,
   String? mother,
   String? motherMobile,
+  String? fatherEmail,
 }) => Student(
   studentId: id,
   hostelId: 1,
@@ -34,6 +45,7 @@ Student st(
   roomNumber: room,
   fatherName: father,
   fatherMobile: fatherMobile,
+  fatherEmail: fatherEmail,
   motherName: mother,
   motherMobile: motherMobile,
 );
@@ -63,6 +75,7 @@ final students = [
     room: '10',
     father: 'Rakesh',
     fatherMobile: '98111 22233',
+    fatherEmail: 'rakesh@x.com',
     mother: 'Sunita',
     motherMobile: '98765 43210',
   ),
@@ -80,9 +93,32 @@ final invoices = [
 
 class FixedBilling extends BillingRepository {
   @override
+  Future<List<Payment>> getPayments(int hostelId) async => [];
+  @override
+  Future<List<Refund>> getRefunds(int hostelId) async => [];
+  @override
   Future<List<Invoice>> getInvoices(int hostelId) async => invoices;
   @override
   Future<int> getAcademicYearStartMonth() async => 7;
+}
+
+class _NoAllocations extends AllocationRepository {
+  @override
+  Future<List<RoomAllocation>> getForHostel(
+    int hostelId, {
+    bool includeHistory = false,
+  }) async => [];
+}
+
+class _Admin extends AdminRepository {
+  @override
+  Future<AdminUser?> getCurrent(String? firebaseUid) async =>
+      const AdminUser(adminUserId: 1, userName: 'admin', email: 'admin@x.com');
+}
+
+class _NoEmailSettings extends EmailSettingsRepository {
+  @override
+  Future<Map<String, String>> getValues() async => {};
 }
 
 class FixedStudents extends StudentRepository {
@@ -218,6 +254,12 @@ void main() {
       StudentRepository.useInstance(FixedStudents());
       ReminderRepository.useInstance(reminders);
       SettingsRepository.useInstance(FakeSettings());
+      AllocationRepository.useInstance(_NoAllocations());
+      AdminRepository.useInstance(_Admin());
+      EmailSettingsRepository.useInstance(_NoEmailSettings());
+      AuthService.useAuth(
+        MockFirebaseAuth(signedIn: true, mockUser: MockUser(uid: 'u')),
+      );
       Launcher.useForTests((uri) async {
         opened.add(uri);
         return true;
@@ -228,6 +270,11 @@ void main() {
       StudentRepository.useInstance(null);
       ReminderRepository.useInstance(null);
       SettingsRepository.useInstance(null);
+      AllocationRepository.useInstance(null);
+      AdminRepository.useInstance(null);
+      EmailSettingsRepository.useInstance(null);
+      AuthService.useAuth(null);
+      DocumentShare.useForTests(null);
       Launcher.useForTests(null);
     });
 
@@ -283,6 +330,51 @@ void main() {
       });
       expect(find.text('Reminder recorded for Ravi.'), findsOneWidget);
       expect(find.text('Last reminder: 24 Nov 2026'), findsOneWidget);
+    });
+
+    testWidgets('Email: the text and every pending invoice PDF', (
+      tester,
+    ) async {
+      final shared = <String>[];
+      DocumentShare.useForTests((files, subject, text) async {
+        shared.add('${files.map((f) => f.name).join('+')}|$subject|$text');
+      });
+      await open(tester);
+      // Only Ravi has a parent email.
+      expect(find.byKey(const Key('email_2')), findsNothing);
+      expect(find.byKey(const Key('email_3')), findsNothing);
+      await tester.tap(find.byKey(const Key('email_1')));
+      await tester.pumpAndSettle();
+      expect(find.text('rakesh@x.com'), findsOneWidget);
+      expect(find.text('Fee reminder for Ravi, Boys Hostel'), findsOneWidget);
+      expect(find.text('Attachments'), findsOneWidget);
+      expect(find.text('Invoice_SBH-2025-2026-0002.pdf'), findsOneWidget);
+      expect(find.text('Invoice_SBH-2026-2027-0001.pdf'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('shareEmail')));
+      await tester.pumpAndSettle();
+      final out = shared.single;
+      expect(
+        out,
+        startsWith(
+          'Invoice_SBH-2025-2026-0002.pdf+Invoice_SBH-2026-2027-0001.pdf|'
+          'Fee reminder for Ravi, Boys Hostel|Dear Rakesh,',
+        ),
+      );
+      expect(
+        out,
+        contains(
+          '2025-2026 (invoice SBH/2025-2026/0002): room rent Rs. 75,000.00, paid Rs. 65,000.00, pending Rs. 10,000.00',
+        ),
+      );
+      expect(
+        out,
+        contains(
+          '2026-2027 (invoice SBH/2026-2027/0001): room rent Rs. 80,000.00, paid Rs. 50,000.50, pending Rs. 29,999.50',
+        ),
+      );
+      expect(out, contains('Total fee: Rs. 1,55,000.00'));
+      expect(out, contains('Paid so far: Rs. 1,15,000.50'));
+      expect(out, contains('Pending amount: Rs. 39,999.50'));
     });
 
     testWidgets('Cancel sends nothing', (tester) async {

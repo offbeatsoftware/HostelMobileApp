@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/hostel.dart';
+import '../models/student.dart';
 import '../models/invoice.dart';
 import '../models/payment.dart';
 import '../models/refund.dart';
 import '../services/document_data.dart';
 import '../services/document_email.dart';
 import '../services/document_pdf.dart';
+import '../services/fee_reminder_service.dart';
 import '../services/document_share.dart';
 import '../services/validators.dart';
 import '../theme/app_theme.dart';
@@ -122,28 +124,78 @@ class DocumentActions {
     },
   );
 
-  /// Shows who the email is for and its text, then shares it with the PDF.
+  /// The fee reminder email with the PDF of every pending invoice.
+  static Future<void> reminderEmail(
+    BuildContext context,
+    Hostel hostel,
+    FeeDue due,
+  ) => _run(context, 'The reminder email could not be prepared.', () async {
+    final data = await DocumentData.invoices(hostel, [
+      for (final i in due.invoices) i.invoiceId,
+    ]);
+    final draft = await DocumentEmail.reminder(data);
+    final files = <SharedFile>[
+      for (final d in data)
+        (
+          name: DocumentPdf.invoiceFileName(d.invoice),
+          bytes: await DocumentPdf.invoice(d),
+        ),
+    ];
+    if (!context.mounted) return;
+    await _shareFiles(context, draft, files);
+  });
+
+  /// The email to a parent about an absence (no attachment).
+  static Future<void> absenceEmail(
+    BuildContext context,
+    Hostel hostel,
+    Student student,
+    DateTime date,
+    String roomNumber,
+    String? remarks,
+  ) => _run(context, 'The email could not be prepared.', () async {
+    final draft = await DocumentEmail.absence(
+      student: student,
+      hostel: hostel,
+      date: date,
+      roomNumber: roomNumber,
+      remarks: remarks,
+    );
+    if (!context.mounted) return;
+    await _shareFiles(context, draft, const []);
+  });
+
   static Future<void> _share(
     BuildContext context,
     EmailDraft draft,
     Uint8List pdf,
     String fileName,
+  ) => _shareFiles(context, draft, [(name: fileName, bytes: pdf)]);
+
+  /// Shows who the email is for and its text, then shares it with the files.
+  static Future<void> _shareFiles(
+    BuildContext context,
+    EmailDraft draft,
+    List<SharedFile> files,
   ) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => _EmailDraftDialog(draft: draft, fileName: fileName),
+      builder: (_) => _EmailDraftDialog(
+        draft: draft,
+        fileNames: [for (final f in files) f.name],
+      ),
     );
     if (ok == true) {
-      await DocumentShare.email(pdf, fileName, draft.subject, draft.body);
+      await DocumentShare.emailFiles(files, draft.subject, draft.body);
     }
   }
 }
 
 class _EmailDraftDialog extends StatelessWidget {
-  const _EmailDraftDialog({required this.draft, required this.fileName});
+  const _EmailDraftDialog({required this.draft, required this.fileNames});
 
   final EmailDraft draft;
-  final String fileName;
+  final List<String> fileNames;
 
   @override
   Widget build(BuildContext context) {
@@ -201,8 +253,10 @@ class _EmailDraftDialog extends StatelessWidget {
               ),
               child: Text(draft.body, key: const Key('draftBody')),
             ),
-            label('Attachment'),
-            Text(fileName),
+            if (fileNames.isNotEmpty) ...[
+              label(fileNames.length == 1 ? 'Attachment' : 'Attachments'),
+              for (final n in fileNames) Text(n),
+            ],
             const SizedBox(height: 12),
             const Text(
               'Choose your mail app on the next screen, then paste the '

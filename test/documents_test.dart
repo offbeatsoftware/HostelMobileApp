@@ -407,6 +407,83 @@ void main() {
       expect(e.copyTo, '');
     });
 
+    test('fee line, with and without transport', () {
+      expect(
+        DocumentEmail.feeLine(invoices[0], 7),
+        '2026-2027 (invoice SBH/2026-2027/0001): room rent Rs. 80,000.00 + '
+        'transport Rs. 12,000.00 = Rs. 92,000.00, paid Rs. 70,000.00, '
+        'pending Rs. 22,000.00',
+      );
+      final plain = Invoice(
+        invoiceId: 9,
+        invoiceNumber: 'X/1',
+        studentId: 1,
+        academicYear: 2026,
+        roomRent: 5000,
+        transportAmount: 0,
+      );
+      expect(
+        DocumentEmail.feeLine(plain, 7),
+        '2026-2027 (invoice X/1): room rent Rs. 5,000.00, paid Rs. 0.00, '
+        'pending Rs. 5,000.00',
+      );
+    });
+
+    test('reminder: needs something pending and a parent email', () async {
+      await expectLater(
+        DocumentEmail.reminder([await DocumentData.invoice(hostel, 2)]),
+        throwsA(
+          isA<ValidationException>().having(
+            (e) => e.message,
+            'message',
+            'Amit has no pending fee, so no reminder is needed.',
+          ),
+        ),
+      );
+      await expectLater(
+        DocumentEmail.reminder([await DocumentData.invoice(hostel, 3)]),
+        throwsA(isA<ValidationException>()),
+      );
+    });
+
+    test('attendance email goes to the mother, else the father', () async {
+      expect(DocumentEmail.attendanceContact(students[1])!.relation, 'Mother');
+      final both = student(
+        5,
+        'Both',
+        fatherEmail: 'f@x.com',
+        motherEmail: 'm@x.com',
+      );
+      expect(DocumentEmail.attendanceContact(both)!.email, 'm@x.com');
+      expect(DocumentEmail.attendanceContact(students[0])!.relation, 'Father');
+      expect(DocumentEmail.attendanceContact(students[2]), isNull);
+      final e = await DocumentEmail.absence(
+        student: students[1],
+        hostel: hostel,
+        date: DateTime(2026, 11, 24),
+        roomNumber: '12',
+        remarks: ' gone home ',
+      );
+      expect(e.to, 'asha@x.com');
+      expect(e.subject, 'Amit was not present at Boys Hostel on 24 Nov 2026');
+      expect(e.body, contains('Amit (room 12) was not present'));
+      await expectLater(
+        DocumentEmail.absence(
+          student: students[2],
+          hostel: hostel,
+          date: DateTime(2026, 11, 24),
+          roomNumber: '1',
+        ),
+        throwsA(
+          isA<ValidationException>().having(
+            (e) => e.message,
+            'message',
+            'Neither the mother nor the father of Karan has an email address.',
+          ),
+        ),
+      );
+    });
+
     test('refund receipt email has fixed wording', () async {
       final e = await DocumentEmail.refund(
         await DocumentData.refund(hostel, 1),
@@ -428,9 +505,11 @@ void main() {
 
     setUp(() {
       shared = [];
-      DocumentShare.useForTests((bytes, name, subject, text) async {
+      DocumentShare.useForTests((files, subject, text) async {
         shared.add(
-          '$name|${bytes.length > 1000}|${subject ?? ''}|${text == null ? '' : 'text'}',
+          '${files.map((f) => f.name).join('+')}|'
+          '${files.every((f) => f.bytes.length > 1000)}|${subject ?? ''}|'
+          '${text == null ? '' : 'text'}',
         );
       });
     });
