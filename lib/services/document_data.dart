@@ -25,7 +25,14 @@ class DocumentData {
       invoices.where((i) => i.invoiceId == id).firstOrNull ??
       (throw const ValidationException('This invoice no longer exists.'));
 
-  static Future<InvoicePrintData> invoice(Hostel hostel, int invoiceId) async {
+  static Future<InvoicePrintData> invoice(Hostel hostel, int invoiceId) async =>
+      (await invoices(hostel, [invoiceId])).first;
+
+  /// The print data of several invoices, read once.
+  static Future<List<InvoicePrintData>> invoices(
+    Hostel hostel,
+    List<int> invoiceIds,
+  ) async {
     final id = hostel.hostelId;
     final billing = BillingRepository.instance;
     final r = await Future.wait([
@@ -36,16 +43,41 @@ class DocumentData {
       AllocationRepository.instance.getForHostel(id, includeHistory: true),
       billing.getAcademicYearStartMonth(),
     ]);
-    final invoice = _invoice(r[0] as List<Invoice>, invoiceId);
-    final student = _student(r[1] as List<Student>, invoice.studentId);
     final startMonth = r[5] as int;
+    return [
+      for (final invoiceId in invoiceIds)
+        _one(
+          hostel,
+          invoiceId,
+          startMonth,
+          r[0] as List<Invoice>,
+          r[1] as List<Student>,
+          r[2] as List<Payment>,
+          r[3] as List<Refund>,
+          r[4] as List<RoomAllocation>,
+        ),
+    ];
+  }
+
+  static InvoicePrintData _one(
+    Hostel hostel,
+    int invoiceId,
+    int startMonth,
+    List<Invoice> allInvoices,
+    List<Student> students,
+    List<Payment> allPayments,
+    List<Refund> allRefunds,
+    List<RoomAllocation> allocations,
+  ) {
+    final invoice = _invoice(allInvoices, invoiceId);
+    final student = _student(students, invoice.studentId);
 
     // The room the student is in now, or the last room during the academic
     // year.
     final from = AcademicYear.start(invoice.academicYear, startMonth);
     final to = AcademicYear.end(invoice.academicYear, startMonth);
     final stays =
-        (r[4] as List<RoomAllocation>)
+        allocations
             .where(
               (a) =>
                   a.studentId == student.studentId &&
@@ -58,18 +90,16 @@ class DocumentData {
             return d != 0 ? d : b.allocationId.compareTo(a.allocationId);
           });
 
-    final payments =
-        (r[2] as List<Payment>).where((p) => p.invoiceId == invoiceId).toList()
-          ..sort((a, b) {
-            final d = a.paymentDate.compareTo(b.paymentDate);
-            return d != 0 ? d : a.paymentId.compareTo(b.paymentId);
-          });
-    final refunds =
-        (r[3] as List<Refund>).where((x) => x.invoiceId == invoiceId).toList()
-          ..sort((a, b) {
-            final d = a.refundDate.compareTo(b.refundDate);
-            return d != 0 ? d : a.refundId.compareTo(b.refundId);
-          });
+    final payments = allPayments.where((p) => p.invoiceId == invoiceId).toList()
+      ..sort((a, b) {
+        final d = a.paymentDate.compareTo(b.paymentDate);
+        return d != 0 ? d : a.paymentId.compareTo(b.paymentId);
+      });
+    final refunds = allRefunds.where((x) => x.invoiceId == invoiceId).toList()
+      ..sort((a, b) {
+        final d = a.refundDate.compareTo(b.refundDate);
+        return d != 0 ? d : a.refundId.compareTo(b.refundId);
+      });
 
     return InvoicePrintData(
       invoice: invoice,

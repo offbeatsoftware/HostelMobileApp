@@ -10,11 +10,13 @@ import '../models/hostel.dart';
 import '../models/student.dart';
 import '../services/attendance_service.dart';
 import '../services/date_format.dart';
+import '../services/document_email.dart';
 import '../services/launcher.dart';
 import '../services/message_text.dart';
 import '../services/validators.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
+import 'document_actions.dart';
 
 const _danger = Color(0xFFC0392B);
 const _success = Color(0xFF198754);
@@ -41,6 +43,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   bool _dirty = false;
   String _template = MessageText.defaultAttendanceText;
   String? _adminPhone;
+  List<Student> _students = [];
   bool _busy = false;
 
   @override
@@ -67,6 +70,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         (r[4] as Map<String, String>)[MessageText.attendanceKey] ??
         MessageText.defaultAttendanceText;
     _adminPhone = r[5] as String?;
+    _students = r[0] as List<Student>;
     final entries = AttendanceService.buildSheet(
       date: date,
       students: r[0] as List<Student>,
@@ -182,6 +186,22 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     if (!mounted) return;
     setState(() => _busy = false);
     showToast(context, message);
+  }
+
+  Student? _student(int id) =>
+      _students.where((s) => s.studentId == id).firstOrNull;
+
+  Future<void> _email(AttendanceEntry e) async {
+    final s = _student(e.studentId);
+    if (s == null) return;
+    await DocumentActions.absenceEmail(
+      context,
+      widget.hostel,
+      s,
+      _date,
+      e.roomNumber,
+      e.remarks,
+    );
   }
 
   Future<void> _whatsApp(AttendanceEntry e) async {
@@ -512,6 +532,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     );
   }
 
+  bool _hasEmail(AttendanceEntry e) {
+    final s = _student(e.studentId);
+    return s != null && DocumentEmail.attendanceContact(s) != null;
+  }
+
   Widget _absentRow(AttendanceEntry e) {
     final hasMobile = e.parentMobile != null;
     return Card(
@@ -546,6 +571,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 ],
               ),
             ),
+            if (_hasEmail(e))
+              IconButton(
+                key: Key('email_${e.studentId}'),
+                tooltip: 'Email the parent',
+                onPressed: () => _email(e),
+                icon: const Icon(Icons.email_outlined),
+              ),
             if (hasMobile)
               FilledButton.icon(
                 key: Key('whatsapp_${e.studentId}'),

@@ -1,5 +1,7 @@
 import '../data/admin_repository.dart';
 import '../models/email_settings.dart';
+import '../models/hostel.dart';
+import '../models/invoice.dart';
 import '../models/print_data.dart';
 import '../models/student.dart';
 import 'auth_service.dart';
@@ -189,5 +191,94 @@ class DocumentEmail {
       d.startMonth,
     );
     return _build(refundTemplate, values, contact, values['AdminEmail']!);
+  }
+
+  /// Who receives attendance emails: the mother, or the father when the
+  /// mother has no email. Null when neither has an email.
+  static EmailContact? attendanceContact(Student s) {
+    if (_t(s.motherEmail).isNotEmpty) {
+      return EmailContact(
+        _t(s.motherName).isEmpty ? 'Parent' : _t(s.motherName),
+        _t(s.motherEmail),
+        'Mother',
+      );
+    }
+    if (_t(s.fatherEmail).isNotEmpty) {
+      return EmailContact(_t(s.fatherName), _t(s.fatherEmail), 'Father');
+    }
+    return null;
+  }
+
+  /// "2026-2027 (invoice SBH/2026-2027/0001): room rent Rs. 80,000.00 +
+  /// transport Rs. 12,000.00 = Rs. 92,000.00, paid Rs. 50,000.00, pending
+  /// Rs. 42,000.00".
+  static String feeLine(Invoice i, int startMonth) {
+    final parts = i.transportAmount > 0
+        ? 'room rent ${Money.rupees(i.roomRent)} + transport '
+              '${Money.rupees(i.transportAmount)} = ${Money.rupees(i.totalAmount)}'
+        : 'room rent ${Money.rupees(i.totalAmount)}';
+    return '${AcademicYear.label(i.academicYear, startMonth)} (invoice '
+        '${i.invoiceNumber}): $parts, paid ${Money.rupees(i.paidAmount)}, '
+        'pending ${Money.rupees(i.pendingAmount)}';
+  }
+
+  /// A fee reminder with the student's total, paid and pending amounts; the
+  /// invoice PDFs go with it. [data] is every pending invoice of the
+  /// student, oldest year first.
+  static Future<EmailDraft> reminder(List<InvoicePrintData> data) async {
+    final first = data.first;
+    final pending = data.fold(0.0, (t, d) => t + d.invoice.pendingAmount);
+    if (pending <= 0) {
+      throw ValidationException(
+        '${first.student.studentName} has no pending fee, so no reminder is '
+        'needed.',
+      );
+    }
+    final settings = await EmailSettingsService.get();
+    final contact = _requireContact(first.student);
+    final values = await _common(
+      first.student,
+      contact,
+      first.hostel.hostelName,
+      first.hostel.phone,
+    );
+    values['FeeDetails'] = data
+        .map((d) => feeLine(d.invoice, d.startMonth))
+        .join('\n');
+    values['TotalAmount'] = Money.rupees(
+      data.fold(0.0, (t, d) => t + d.invoice.totalAmount),
+    );
+    values['PaidAmount'] = Money.rupees(
+      data.fold(0.0, (t, d) => t + d.invoice.paidAmount),
+    );
+    values['Pending'] = Money.rupees(pending);
+    return _build(settings.reminder, values, contact, values['AdminEmail']!);
+  }
+
+  /// The absence email for a night's attendance.
+  static Future<EmailDraft> absence({
+    required Student student,
+    required Hostel hostel,
+    required DateTime date,
+    required String roomNumber,
+    String? remarks,
+  }) async {
+    final settings = await EmailSettingsService.get();
+    final contact =
+        attendanceContact(student) ??
+        (throw ValidationException(
+          'Neither the mother nor the father of ${student.studentName} has an '
+          'email address.',
+        ));
+    final values = await _common(
+      student,
+      contact,
+      hostel.hostelName,
+      hostel.phone,
+    );
+    values['AttendanceDate'] = formatDate(date);
+    values['RoomNumber'] = roomNumber;
+    values['Remarks'] = _t(remarks);
+    return _build(settings.absence, values, contact, values['AdminEmail']!);
   }
 }

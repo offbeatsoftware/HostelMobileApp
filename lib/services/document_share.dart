@@ -1,40 +1,47 @@
 import 'package:flutter/foundation.dart';
 import 'package:share_plus/share_plus.dart';
 
-/// Hands a PDF to the phone's share sheet: to save or print it, send it on
-/// WhatsApp, or (with [email]) attach it to a mail with the subject and text
+/// A file to hand to the share sheet.
+typedef SharedFile = ({String name, Uint8List bytes});
+
+/// Hands files and text to the phone's share sheet: save or print a PDF,
+/// send it on WhatsApp, or attach PDFs to a mail with the subject and text
 /// filled in.
 class DocumentShare {
-  static Future<void> Function(
-    Uint8List bytes,
-    String fileName,
+  static String _mime(String name) {
+    final n = name.toLowerCase();
+    if (n.endsWith('.pdf')) return 'application/pdf';
+    if (n.endsWith('.png')) return 'image/png';
+    return 'image/jpeg';
+  }
+
+  static Future<void> _defaultShare(
+    List<SharedFile> files,
     String? subject,
     String? text,
-  )
-  _share = (bytes, name, subject, text) => SharePlus.instance.share(
+  ) => SharePlus.instance.share(
     ShareParams(
-      files: [XFile.fromData(bytes, mimeType: 'application/pdf', name: name)],
-      fileNameOverrides: [name],
+      files: files.isEmpty
+          ? null
+          : [
+              for (final f in files)
+                XFile.fromData(f.bytes, mimeType: _mime(f.name), name: f.name),
+            ],
+      fileNameOverrides: files.isEmpty ? null : [for (final f in files) f.name],
       subject: subject,
       text: text,
     ),
   );
 
+  static Future<void> Function(
+    List<SharedFile> files,
+    String? subject,
+    String? text,
+  )
+  _share = _defaultShare;
+
   static Future<void> _defaultImage(Uint8List bytes, String name) =>
-      SharePlus.instance.share(
-        ShareParams(
-          files: [
-            XFile.fromData(
-              bytes,
-              mimeType: name.toLowerCase().endsWith('.png')
-                  ? 'image/png'
-                  : 'image/jpeg',
-              name: name,
-            ),
-          ],
-          fileNameOverrides: [name],
-        ),
-      );
+      _defaultShare([(name: name, bytes: bytes)], null, null);
 
   static Future<void> Function(Uint8List bytes, String fileName) _shareImage =
       _defaultImage;
@@ -44,33 +51,30 @@ class DocumentShare {
       _shareImage(bytes, fileName);
 
   static Future<void> pdf(Uint8List bytes, String fileName) =>
-      _share(bytes, fileName, null, null);
+      _share([(name: fileName, bytes: bytes)], null, null);
 
+  /// A mail with one PDF attached.
   static Future<void> email(
     Uint8List bytes,
     String fileName,
     String subject,
     String body,
-  ) => _share(bytes, fileName, subject, body);
+  ) => _share([(name: fileName, bytes: bytes)], subject, body);
+
+  /// A mail with several PDFs attached (none: text only).
+  static Future<void> emailFiles(
+    List<SharedFile> files,
+    String subject,
+    String body,
+  ) => _share(files, subject, body);
 
   /// Lets the automated tests record what would be shared.
   @visibleForTesting
   static void useForTests(
-    Future<void> Function(Uint8List, String, String?, String?)? share, {
+    Future<void> Function(List<SharedFile>, String?, String?)? share, {
     Future<void> Function(Uint8List, String)? shareImage,
   }) {
+    _share = share ?? _defaultShare;
     _shareImage = shareImage ?? _defaultImage;
-    _share =
-        share ??
-        (bytes, name, subject, text) => SharePlus.instance.share(
-          ShareParams(
-            files: [
-              XFile.fromData(bytes, mimeType: 'application/pdf', name: name),
-            ],
-            fileNameOverrides: [name],
-            subject: subject,
-            text: text,
-          ),
-        );
   }
 }

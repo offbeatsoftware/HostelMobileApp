@@ -1,6 +1,12 @@
+import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hostel_mobile_app/data/admin_repository.dart';
 import 'package:hostel_mobile_app/data/allocation_repository.dart';
+import 'package:hostel_mobile_app/data/email_settings_repository.dart';
+import 'package:hostel_mobile_app/models/admin_user.dart';
+import 'package:hostel_mobile_app/services/auth_service.dart';
+import 'package:hostel_mobile_app/services/document_share.dart';
 import 'package:hostel_mobile_app/data/attendance_repository.dart';
 import 'package:hostel_mobile_app/data/settings_repository.dart';
 import 'package:hostel_mobile_app/data/student_repository.dart';
@@ -27,6 +33,7 @@ Student st(
   String? motherMobile,
   String? father,
   String? fatherMobile,
+  String? motherEmail,
 }) => Student(
   studentId: id,
   hostelId: 1,
@@ -35,6 +42,7 @@ Student st(
   admissionDate: DateTime(2026, 7, 1),
   motherName: mother,
   motherMobile: motherMobile,
+  motherEmail: motherEmail,
   fatherName: father,
   fatherMobile: fatherMobile,
 );
@@ -61,7 +69,13 @@ RoomAllocation al(
 );
 
 final students = [
-  st(1, 'Ravi', mother: 'Sunita', motherMobile: '98765 43210'),
+  st(
+    1,
+    'Ravi',
+    mother: 'Sunita',
+    motherMobile: '98765 43210',
+    motherEmail: 'sunita@x.com',
+  ),
   st(2, 'Amit', father: 'Raj', fatherMobile: '+91 98111 22233'),
   st(3, 'Karan', motherMobile: '12345'), // no usable mobile
   st(4, 'Vikas', mother: 'Asha', motherMobile: '09876543210'),
@@ -115,6 +129,21 @@ class FakeSettings extends SettingsRepository {
 
   @override
   Future<String?> getAdminPhone() async => '99999 11111';
+}
+
+class _Admin extends AdminRepository {
+  @override
+  Future<AdminUser?> getCurrent(String? firebaseUid) async => const AdminUser(
+    adminUserId: 1,
+    userName: 'admin',
+    email: 'admin@x.com',
+    phone: '99999 11111',
+  );
+}
+
+class _NoEmailSettings extends EmailSettingsRepository {
+  @override
+  Future<Map<String, String>> getValues() async => {};
 }
 
 class FakeAttendance extends AttendanceRepository {
@@ -282,6 +311,11 @@ void main() {
       AllocationRepository.useInstance(FixedAllocations());
       AttendanceRepository.useInstance(db);
       SettingsRepository.useInstance(FakeSettings());
+      AdminRepository.useInstance(_Admin());
+      EmailSettingsRepository.useInstance(_NoEmailSettings());
+      AuthService.useAuth(
+        MockFirebaseAuth(signedIn: true, mockUser: MockUser(uid: 'u')),
+      );
       Launcher.useForTests((uri) async {
         opened.add(uri);
         return true;
@@ -292,6 +326,10 @@ void main() {
       AllocationRepository.useInstance(null);
       AttendanceRepository.useInstance(null);
       SettingsRepository.useInstance(null);
+      AdminRepository.useInstance(null);
+      EmailSettingsRepository.useInstance(null);
+      AuthService.useAuth(null);
+      DocumentShare.useForTests(null);
       Launcher.useForTests(null);
     });
 
@@ -311,6 +349,40 @@ void main() {
       tester.state<NavigatorState>(find.byType(Navigator)).pushNamed('/att');
       await tester.pumpAndSettle();
     }
+
+    testWidgets('an absent student with a parent email can be emailed', (
+      tester,
+    ) async {
+      final shared = <String>[];
+      DocumentShare.useForTests((files, subject, text) async {
+        shared.add('${files.length}|$subject|${text!.split('\n').first}');
+      });
+      await open(tester);
+      await tester.tap(find.byKey(const Key('present_1')));
+      await tester.pump();
+      await tester.enterText(find.byKey(const Key('remarks_1')), 'gone home');
+      await tester.tap(find.byKey(const Key('saveAttendance')));
+      await tester.pumpAndSettle();
+      // Amit (no email) has no Email button.
+      expect(find.byKey(const Key('email_2')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('email_1')));
+      await tester.pumpAndSettle();
+      expect(find.text('sunita@x.com'), findsOneWidget);
+      expect(find.text('admin@x.com'), findsOneWidget);
+      expect(
+        find.text('Ravi was not present at Boys Hostel on 24 Nov 2026'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('(room 10, bed 1)'), findsNothing);
+      expect(find.textContaining('(room 10)'), findsOneWidget);
+      expect(shared, isEmpty);
+      await tester.tap(find.byKey(const Key('shareEmail')));
+      await tester.pumpAndSettle();
+      expect(shared, [
+        '0|Ravi was not present at Boys Hostel on 24 Nov 2026|Dear Sunita,',
+      ]);
+    });
 
     testWidgets('mark absent, save, then WhatsApp the parent', (tester) async {
       await open(tester);
