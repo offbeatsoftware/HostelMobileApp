@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hostel_mobile_app/data/admin_repository.dart';
 import 'package:hostel_mobile_app/data/allocation_repository.dart';
 import 'package:hostel_mobile_app/data/billing_repository.dart';
+import 'package:hostel_mobile_app/data/email_send_repository.dart';
 import 'package:hostel_mobile_app/data/email_settings_repository.dart';
 import 'package:hostel_mobile_app/data/student_repository.dart';
 import 'package:hostel_mobile_app/models/admin_user.dart';
@@ -190,6 +191,22 @@ class FakeAdmin extends AdminRepository {
     email: 'admin@x.com',
     phone: '99999 11111',
   );
+}
+
+class FakeSendRepo extends EmailSendRepository {
+  FakeSendRepo({this.configured = true, this.error});
+  final bool configured;
+  final String? error;
+  final calls = <Map<String, Object?>>[];
+
+  @override
+  Future<bool> isConfigured() async => configured;
+
+  @override
+  Future<String?> call(Map<String, Object?> body) async {
+    calls.add(body);
+    return error;
+  }
 }
 
 class FakeEmailSettings extends EmailSettingsRepository {
@@ -553,6 +570,81 @@ void main() {
       expect(shared, [
         'Invoice_SBH-2026-2027-0001.pdf|true|Invoice SBH/2026-2027/0001 for Ravi, Boys Hostel|text',
       ]);
+    });
+
+    testWidgets('with the Gmail password saved the phone sends it', (
+      tester,
+    ) async {
+      final repo = FakeSendRepo();
+      EmailSendRepository.useInstance(repo);
+      addTearDown(() => EmailSendRepository.useInstance(null));
+      await open(tester, InvoicesScreen(hostel: hostel, today: today));
+      await menu(tester, 'invoiceMenu_1', 'Email Invoice');
+      expect(find.byKey(const Key('shareEmail')), findsOneWidget); // Mail App
+      await tester.tap(find.byKey(const Key('sendEmail')));
+      await tester.pumpAndSettle();
+      // The "Sending" box is gone again.
+      expect(find.byKey(const Key('sendingEmail')), findsNothing);
+      expect(
+        find.text(
+          'The email was sent to Rakesh (rakesh@x.com). A copy went to admin@x.com.',
+        ),
+        findsOneWidget,
+      );
+      final c = repo.calls.single;
+      expect(c['action'], 'send');
+      expect(c['to'], 'rakesh@x.com');
+      expect(c['cc'], 'admin@x.com');
+      expect(c['subject'], 'Invoice SBH/2026-2027/0001 for Ravi, Boys Hostel');
+      expect(
+        (c['attachments'] as List).single['name'],
+        'Invoice_SBH-2026-2027-0001.pdf',
+      );
+      expect(c['log'], {
+        'emailType': 'Invoice',
+        'studentId': 1,
+        'invoiceIds': [1],
+      });
+      expect(shared, isEmpty);
+    });
+
+    testWidgets('a failed send is explained and the mail app is offered', (
+      tester,
+    ) async {
+      EmailSendRepository.useInstance(
+        FakeSendRepo(
+          error:
+              'Gmail did not accept the sender address and app password. '
+              'Check them in Email Settings (use a Gmail app password, not '
+              'the normal password).',
+        ),
+      );
+      addTearDown(() => EmailSendRepository.useInstance(null));
+      await open(tester, InvoicesScreen(hostel: hostel, today: today));
+      await menu(tester, 'invoiceMenu_1', 'Email Invoice');
+      await tester.tap(find.byKey(const Key('sendEmail')));
+      await tester.pumpAndSettle();
+      expect(find.text('The email could not be sent'), findsOneWidget);
+      expect(find.textContaining('Gmail did not accept'), findsOneWidget);
+      expect(shared, isEmpty);
+      await tester.tap(find.byKey(const Key('useMailApp')));
+      await tester.pumpAndSettle();
+      expect(shared.single, startsWith('Invoice_SBH-2026-2027-0001.pdf|true'));
+    });
+
+    testWidgets('without the Gmail password only the mail app is offered', (
+      tester,
+    ) async {
+      EmailSendRepository.useInstance(FakeSendRepo(configured: false));
+      addTearDown(() => EmailSendRepository.useInstance(null));
+      await open(tester, InvoicesScreen(hostel: hostel, today: today));
+      await menu(tester, 'invoiceMenu_1', 'Email Invoice');
+      expect(find.byKey(const Key('sendEmail')), findsNothing);
+      expect(find.text('Open Mail App'), findsOneWidget);
+      expect(
+        find.textContaining('enter the Gmail app password in Email Settings'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('cancelling the email shares nothing', (tester) async {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/email_settings_repository.dart';
 import '../models/email_settings.dart';
 import '../services/date_format.dart';
+import '../services/email_sender.dart';
 import '../services/email_settings_service.dart';
 import '../services/message_text.dart';
 import '../services/payment_qr_service.dart';
@@ -49,6 +50,9 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen>
   final _senderName = TextEditingController();
   final _host = TextEditingController();
   final _port = TextEditingController();
+  final _password = TextEditingController();
+  final _testTo = TextEditingController();
+  bool _passwordSaved = false;
   final _whatsAppFee = TextEditingController();
   final _whatsAppAttendance = TextEditingController();
   final _templates = [
@@ -90,6 +94,8 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen>
       _senderName,
       _host,
       _port,
+      _password,
+      _testTo,
       _whatsAppFee,
       _whatsAppAttendance,
     ]) {
@@ -110,6 +116,7 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen>
     _port.text = '${s.smtpPort}';
     _whatsAppFee.text = s.whatsAppFeeText;
     _whatsAppAttendance.text = s.whatsAppAttendanceText;
+    _passwordSaved = await EmailSender.isConfigured();
     try {
       _qr = await PaymentQrService.get();
     } catch (_) {
@@ -136,7 +143,7 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen>
     });
   }
 
-  Future<void> _run(Future<void> Function() save, String failure) async {
+  Future<void> _run(Future<String> Function() save, String failure) async {
     if (_saving) return;
     FocusScope.of(context).unfocus();
     setState(() {
@@ -144,11 +151,11 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen>
       _message = '';
     });
     try {
-      await save();
+      final done = await save();
       if (!mounted) return;
       setState(() {
         _messageOk = true;
-        _message = 'Saved.';
+        _message = done;
       });
     } on ValidationException catch (e) {
       if (mounted) {
@@ -164,8 +171,10 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen>
     }
   }
 
-  Future<void> _saveEmail() => _run(
-    () => EmailSettingsService.saveEmail(
+  /// Saves the Gmail account and texts, and the app password when one was
+  /// typed (it is kept encrypted in Supabase and never shown again).
+  Future<void> _saveAll() async {
+    await EmailSettingsService.saveEmail(
       senderEmail: _senderEmail.text,
       senderName: _senderName.text,
       smtpHost: _host.text,
@@ -174,17 +183,39 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen>
       receipt: _read(1),
       reminder: _read(2),
       absence: _read(3),
-    ),
-    'The email settings could not be saved.',
-  );
+    );
+    if (_password.text.trim().isNotEmpty) {
+      await EmailSender.savePassword(_password.text);
+      _password.clear();
+      if (mounted) setState(() => _passwordSaved = true);
+    }
+  }
 
-  Future<void> _saveWhatsApp() => _run(
-    () => EmailSettingsService.saveWhatsApp(
+  Future<void> _saveEmail() => _run(() async {
+    await _saveAll();
+    return 'Saved.';
+  }, 'The email settings could not be saved.');
+
+  /// Saves, then sends a test email to the address typed (or to the Gmail
+  /// address itself).
+  Future<void> _sendTest() => _run(() async {
+    await _saveAll();
+    if (!_passwordSaved) {
+      throw const ValidationException('Please enter the Gmail app password.');
+    }
+    final to = Validators.clean(_testTo.text);
+    await EmailSender.sendTest(to);
+    final where = to.isEmpty ? Validators.clean(_senderEmail.text) : to;
+    return 'Test email sent to $where. Check its inbox.';
+  }, 'The test email could not be sent.');
+
+  Future<void> _saveWhatsApp() => _run(() async {
+    await EmailSettingsService.saveWhatsApp(
       feeText: _whatsAppFee.text,
       attendanceText: _whatsAppAttendance.text,
-    ),
-    'The WhatsApp settings could not be saved.',
-  );
+    );
+    return 'Saved.';
+  }, 'The WhatsApp settings could not be saved.');
 
   Future<void> _chooseQr() async {
     if (_qrBusy) return;
@@ -459,20 +490,45 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen>
         required: true,
         keyboard: TextInputType.number,
       ),
+      FormTextField(
+        key: const Key('appPassword'),
+        label: _passwordSaved
+            ? 'App password (saved; type a new one to replace it)'
+            : 'App password',
+        controller: _password,
+        maxLength: 100,
+        obscure: true,
+      ),
       _note(
         'Gmail needs an app password, not the normal password:\n'
         '1. Sign in to the Gmail account and turn on 2-Step Verification '
         '(Google Account > Security).\n'
         '2. Open myaccount.google.com/apppasswords, create an app password '
         'named "Hostel Management".\n'
-        '3. Enter the 16 letters on the desktop Email Settings screen, click '
-        'Save, then Send Test Email.',
+        '3. Copy the 16 letters here and click Save, then Send Test Email.',
       ),
       _note(
-        'The app password is stored encrypted for the Windows user of the '
-        'desktop program, so it is entered there, not here. Emails are sent '
-        'from the desktop program. The sender name is empty to use '
-        'Shri Balaji Hostel.',
+        'The password is kept encrypted in Supabase and is never shown '
+        'again; leave the box empty to keep it. It is separate from the '
+        'desktop program\'s own copy. The phone connects to Gmail on port '
+        '465 (Supabase blocks port 587) with the same account. Emails are '
+        'sent through the send-email function (see the README). The sender '
+        'name is empty to use Shri Balaji Hostel.',
+      ),
+      FormTextField(
+        key: const Key('testTo'),
+        label: 'Send test to (empty: the Gmail address above)',
+        controller: _testTo,
+        maxLength: 150,
+        keyboard: TextInputType.emailAddress,
+      ),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: OutlinedButton(
+          key: const Key('sendTest'),
+          onPressed: _saving ? null : _sendTest,
+          child: const Text('Send Test Email'),
+        ),
       ),
     ],
   );

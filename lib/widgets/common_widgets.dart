@@ -99,6 +99,7 @@ class FormTextField extends StatelessWidget {
     this.enabled = true,
     this.keyboard,
     this.maxLines = 1,
+    this.obscure = false,
   });
 
   final String label;
@@ -109,12 +110,16 @@ class FormTextField extends StatelessWidget {
   final TextInputType? keyboard;
   final int maxLines;
 
+  /// Hides what is typed (a password).
+  final bool obscure;
+
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextField(
         controller: controller,
+        obscureText: obscure,
         enabled: enabled,
         maxLength: maxLength,
         maxLines: maxLines,

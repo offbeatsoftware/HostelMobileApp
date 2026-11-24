@@ -32,7 +32,35 @@ One time setup:
 13. Run `supabase/012_refund_functions.sql` (Refunds).
 14. Run `supabase/013_delete_student_permanently.sql` (Students > Delete Permanently).
 15. Run `supabase/014_payment_qr_storage.sql` (payment QR image in WhatsApp reminders).
-16. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
+16. Run `supabase/015_email_sending.sql` (sending emails from the phone).
+17. Deploy the `send-email` function (see "Sending emails from the phone" below).
+18. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
+
+## Sending emails from the phone
+
+The phone sends invoices, receipts, fee reminders and attendance emails
+through the hostel's Gmail account, as the desktop program does. Gmail is
+contacted by a small Supabase Edge Function, `send-email`, so the Gmail app
+password never has to be on the phone. Without it the Email buttons still
+open the phone's mail app with the PDF attached.
+
+1. Run `supabase/015_email_sending.sql` (step 16 above).
+2. Supabase Dashboard > **Edge Functions** > **Deploy a new function** > **Via Editor**.
+   Name it exactly `send-email`, paste the whole of
+   `supabase/functions/send-email/index.ts` and deploy.
+3. Open the function's settings and turn **off** "Verify JWT with legacy secret"
+   (the function checks the signed in admin itself, because the app signs in
+   with Firebase). Nothing else needs setting: `SUPABASE_URL`,
+   `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are provided to the
+   function by Supabase.
+4. In the app: Email Settings > Gmail account: check the Gmail address, type the
+   Gmail app password (16 letters, see the help text there), tap **Save**, then
+   **Send Test Email**.
+
+The password is kept encrypted in Supabase Vault and is never sent back to the
+phone. It is separate from the desktop program's own copy. Supabase blocks
+outgoing SMTP ports 25 and 587, so the function connects to Gmail on port 465
+with the same account and password.
 
 ## Run
 ```
