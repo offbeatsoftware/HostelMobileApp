@@ -24,7 +24,8 @@ One time setup:
 5. Run `supabase/004_college_functions.sql` (Colleges screen).
 6. Run `supabase/005_room_functions.sql` (Rooms screen).
 7. Run `supabase/006_student_functions.sql` (Students screen).
-8. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
+8. Run `supabase/007_allocation_functions.sql` (Room Allocation screen).
+9. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
 
 ## Run
 ```
