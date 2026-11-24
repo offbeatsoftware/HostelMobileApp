@@ -27,7 +27,8 @@ One time setup:
 8. Run `supabase/007_allocation_functions.sql` (Room Allocation screen).
 9. Run `supabase/008_billing_functions.sql` (Invoices and Payments screens).
 10. Run `supabase/009_dashboard.sql` (Dashboard).
-11. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
+11. Run `supabase/010_attendance_functions.sql` (Attendance screen).
+12. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
 
 ## Run
 ```
