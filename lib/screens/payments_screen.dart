@@ -12,6 +12,7 @@ import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 import 'payment_form_screen.dart';
 import 'payment_history_screen.dart';
+import 'refunds_screen.dart';
 
 /// Payments (the desktop screen): record payments in any number of
 /// instalments, correct or delete them with a reason, and the change history.
@@ -127,6 +128,23 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
               ),
             ),
             actions: [
+              IconButton(
+                key: const Key('openRefunds'),
+                tooltip: 'Refunds',
+                icon: const Icon(Icons.currency_exchange),
+                onPressed: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => RefundsScreen(
+                        hostel: widget.hostel,
+                        today: widget.today,
+                      ),
+                    ),
+                  );
+                  // Refunds change what is paid on the fees.
+                  if (mounted) await _reload();
+                },
+              ),
               IconButton(
                 key: const Key('changeHistory'),
                 tooltip: 'Change history',

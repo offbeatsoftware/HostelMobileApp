@@ -2,6 +2,7 @@ import '../data/billing_repository.dart';
 import '../models/allocation.dart';
 import '../models/invoice.dart';
 import '../models/payment.dart';
+import '../models/refund.dart';
 import 'allocation_service.dart';
 import 'date_format.dart';
 import 'money.dart';
@@ -321,5 +322,130 @@ class BillingService {
     final why = Validators.clean(reason);
     Validators.checkLength(why, 255, 'Reason');
     await BillingRepository.instance.deletePayment(payment.paymentId, why);
+  }
+
+  // ---- Refunds ----
+
+  /// The fees that still have money paid on them (the ones a refund can come
+  /// from), oldest year first.
+  static List<Invoice> refundableInvoices(List<Invoice> invoices) =>
+      invoices.where((i) => i.paidAmount > 0).toList()..sort((a, b) {
+        final y = a.academicYear.compareTo(b.academicYear);
+        if (y != 0) return y;
+        final n = a.studentName.toLowerCase().compareTo(
+          b.studentName.toLowerCase(),
+        );
+        return n != 0 ? n : a.invoiceId.compareTo(b.invoiceId);
+      });
+
+  /// Refunds matching the search (refund no., invoice, student, reference or
+  /// reason).
+  static List<Refund> filterRefunds(List<Refund> refunds, String? search) {
+    final s = Validators.clean(search).toLowerCase();
+    if (s.isEmpty) return refunds;
+    bool has(String? v) => (v ?? '').toLowerCase().contains(s);
+    return refunds
+        .where(
+          (r) =>
+              has(r.refundNumber) ||
+              has(r.invoiceNumber) ||
+              has(r.studentName) ||
+              has(r.reference) ||
+              has(r.reason),
+        )
+        .toList();
+  }
+
+  /// "3 refunds, ₹30,000 paid back".
+  static String refundSummary(List<Refund> shown) =>
+      '${shown.length} ${shown.length == 1 ? 'refund' : 'refunds'}, '
+      '${Money.format(shown.fold(0.0, (t, r) => t + r.amount))} paid back';
+
+  /// Checks the refund as the desktop RefundService does, then records it;
+  /// returns the refund number. The database checks everything again.
+  static Future<String> recordRefund({
+    required Invoice? invoice,
+    required DateTime date,
+    required DateTime today,
+    required String amountText,
+    required String method,
+    String? reference,
+    String? reason,
+  }) async {
+    if (invoice == null) {
+      throw const ValidationException('Please select the fee to refund from.');
+    }
+    final amount = _readAmount(
+      amountText,
+      'Please enter the amount as a number, for example 5000.',
+    );
+    final ref = Validators.clean(reference);
+    final why = Validators.clean(reason);
+    if (dateOnly(date).isAfter(dateOnly(today))) {
+      throw const ValidationException(
+        'The refund date cannot be in the future.',
+      );
+    }
+    if (amount <= 0) {
+      throw const ValidationException(
+        'Please enter an amount greater than zero.',
+      );
+    }
+    if (((amount * 100) - (amount * 100).round()).abs() > 1e-6) {
+      throw const ValidationException(
+        'The amount can have at most two decimal places (paise).',
+      );
+    }
+    if (!PaymentMethod.all.contains(method)) {
+      throw const ValidationException(
+        'Please select how the money was paid back.',
+      );
+    }
+    if (PaymentMethod.requiresReference(method) && ref.isEmpty) {
+      throw ValidationException(
+        'Please enter the ${PaymentMethod.referenceName(method).toLowerCase()}.',
+      );
+    }
+    if (why.isEmpty) {
+      throw const ValidationException(
+        'Please enter the reason for the refund, for example '
+        '"left the hostel in December".',
+      );
+    }
+    Validators.checkLength(ref, 100, 'Reference');
+    Validators.checkLength(why, 255, 'Reason');
+    if (invoice.paidAmount <= 0) {
+      throw ValidationException(
+        'Nothing is paid on invoice ${invoice.invoiceNumber}, so nothing can '
+        'be refunded.',
+      );
+    }
+    if (amount > invoice.paidAmount) {
+      throw ValidationException(
+        'The refund cannot be more than ${Money.format(invoice.paidAmount)}, '
+        'the amount paid on invoice ${invoice.invoiceNumber} after earlier '
+        'refunds.',
+      );
+    }
+    return BillingRepository.instance.recordRefund(
+      invoiceId: invoice.invoiceId,
+      date: isoDate(date),
+      amount: amount,
+      method: method,
+      reference: ref,
+      reason: why,
+    );
+  }
+
+  /// Deletes a refund entered by mistake; the reason is required.
+  static Future<void> deleteRefund(Refund refund, String? reason) async {
+    final why = Validators.clean(reason);
+    if (why.isEmpty) {
+      throw const ValidationException(
+        'Please enter the reason, for example "entered twice by mistake".',
+      );
+    }
+    Validators.checkLength(why, 255, 'Reason');
+    await BillingRepository.instance.deleteRefund(refund.refundId, why);
   }
 }
