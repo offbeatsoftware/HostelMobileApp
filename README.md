@@ -38,6 +38,13 @@ One time setup:
 19. Run `supabase/017_student_files.sql` (student photos and Aadhaar cards).
 20. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
 
+> **Firebase and the database role:** Firebase sign-in tokens have no `role`
+> claim, so Supabase runs the app's requests as role `anon`. Every access rule
+> therefore says `TO anon, authenticated`; the check inside
+> `is_hostel_admin()` decides who gets in. Scripts 014 to 017 had
+> `TO authenticated` only, which made Storage refuse uploads (403) until they
+> were corrected: run 014, 015, 016 and 017 again if you ran the earlier versions.
+
 ## Sending emails from the phone
 
 The phone sends invoices, receipts, fee reminders and attendance emails

@@ -25,9 +25,12 @@ ON CONFLICT (id) DO UPDATE
        file_size_limit = 5242880,
        allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'application/pdf'];
 
+-- Firebase tokens have no "role" claim, so Supabase treats the app's requests
+-- as role anon; "anon, authenticated" covers that (as in script 002). The
+-- check inside is_hostel_admin() is what decides who gets in.
 DROP POLICY IF EXISTS hostel_admin_student_files ON storage.objects;
 CREATE POLICY hostel_admin_student_files ON storage.objects
-    FOR ALL TO authenticated
+    FOR ALL TO anon, authenticated
     USING (bucket_id = 'student-files' AND public.is_hostel_admin())
     WITH CHECK (bucket_id = 'student-files' AND public.is_hostel_admin());
 

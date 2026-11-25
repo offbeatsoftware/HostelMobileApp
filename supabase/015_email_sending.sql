@@ -68,7 +68,9 @@ REVOKE ALL ON FUNCTION public._get_gmail_app_password()     FROM PUBLIC, anon, a
 GRANT EXECUTE ON FUNCTION public._set_gmail_app_password(TEXT) TO service_role;
 GRANT EXECUTE ON FUNCTION public._get_gmail_app_password()     TO service_role;
 
-REVOKE ALL ON FUNCTION public.gmail_password_saved() FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.gmail_password_saved() TO authenticated;
+-- Firebase tokens have no "role" claim, so the app's requests run as role
+-- anon: it needs this too. The check inside the function decides.
+REVOKE ALL ON FUNCTION public.gmail_password_saved() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.gmail_password_saved() TO anon, authenticated;
 
 COMMIT;
