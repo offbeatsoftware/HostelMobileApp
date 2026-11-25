@@ -1,13 +1,19 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../models/college.dart';
 import '../models/hostel.dart';
 import '../models/student.dart';
 import '../services/date_format.dart';
+import '../services/document_share.dart';
+import '../services/student_file_service.dart';
 import '../services/student_service.dart';
 import '../services/validators.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
+import '../widgets/student_avatar.dart';
 
 /// Add or view / edit one student (the desktop StudentEditForm): the
 /// student, college and stay, and the father and mother.
@@ -62,6 +68,13 @@ class _StudentEditScreenState extends State<StudentEditScreen> {
   late DateTime _admission =
       s?.admissionDate ?? dateOnly(widget.today ?? DateTime.now());
 
+  // The photo and Aadhaar card chosen in this form; they are uploaded when
+  // the student is saved.
+  Uint8List? _newPhoto;
+  bool _removePhoto = false;
+  AadhaarFile? _newAadhaar;
+  bool _removeAadhaar = false;
+
   String _message = '';
   bool _busy = false;
 
@@ -100,7 +113,7 @@ class _StudentEditScreenState extends State<StudentEditScreen> {
       _message = '';
     });
     try {
-      await StudentService.save(
+      final id = await StudentService.save(
         StudentInput(
           studentId: s?.studentId,
           hostelId: widget.hostel.hostelId,
@@ -126,6 +139,7 @@ class _StudentEditScreenState extends State<StudentEditScreen> {
         ),
         today: widget.today,
       );
+      await _saveFiles(id);
       if (mounted) Navigator.of(context).pop(true);
     } on ValidationException catch (e) {
       _showMessage(e.message);
@@ -133,6 +147,242 @@ class _StudentEditScreenState extends State<StudentEditScreen> {
       _showMessage('The student could not be saved. $e');
     }
   }
+
+  /// Uploads the photo and Aadhaar card. The student is already saved, so a
+  /// failed upload is reported without keeping the form open (saving again
+  /// would add the student twice).
+  Future<void> _saveFiles(int studentId) async {
+    final changes = StudentFileChanges(
+      newPhoto: _newPhoto,
+      removePhoto: _removePhoto,
+      newAadhaar: _newAadhaar,
+      removeAadhaar: _removeAadhaar,
+    );
+    if (changes.isEmpty) return;
+    try {
+      await StudentFileService.apply(studentId, s, changes);
+    } catch (e) {
+      if (mounted) {
+        showToast(
+          context,
+          'The student was saved, but the photo or Aadhaar card could not '
+          'be uploaded. Open the student and add it again. $e',
+        );
+      }
+    }
+  }
+
+  /// Runs a file choice; a refused file is shown as the form's message.
+  Future<void> _choose(Future<void> Function() pick) async {
+    if (_busy) return;
+    try {
+      await pick();
+      if (mounted) setState(() => _message = '');
+    } on ValidationException catch (e) {
+      _showMessage(e.message);
+    } catch (e) {
+      _showMessage('The file could not be chosen. $e');
+    }
+  }
+
+  Future<void> _pickPhoto(ImageSource source) => _choose(() async {
+    final photo = await StudentFileService.pickPhoto(source);
+    if (photo == null) return;
+    setState(() {
+      _newPhoto = photo;
+      _removePhoto = false;
+    });
+  });
+
+  Future<void> _pickScan(ImageSource source) => _choose(() async {
+    final scan = await StudentFileService.pickAadhaarImage(source);
+    if (scan == null) return;
+    setState(() {
+      _newAadhaar = scan;
+      _removeAadhaar = false;
+    });
+  });
+
+  Future<void> _pickPdf() => _choose(() async {
+    final scan = await StudentFileService.pickAadhaarPdf();
+    if (scan == null) return;
+    setState(() {
+      _newAadhaar = scan;
+      _removeAadhaar = false;
+    });
+  });
+
+  Future<void> _viewAadhaar() async {
+    final pending = _newAadhaar;
+    final name = s?.aadhaarCardPath;
+    final bytes = pending?.bytes ?? await StudentFileService.load(name);
+    if (bytes == null) {
+      if (mounted) showToast(context, 'The Aadhaar card could not be opened.');
+      return;
+    }
+    final isPdf =
+        pending?.isPdf ?? (name?.toLowerCase().endsWith('.pdf') ?? false);
+    if (isPdf) {
+      // The phone's own PDF viewer, through the share sheet.
+      await DocumentShare.pdf(bytes, 'Aadhaar_${s?.studentId ?? 'new'}.pdf');
+    } else if (mounted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              PictureViewScreen(title: 'Aadhaar card', bytes: bytes),
+        ),
+      );
+    }
+  }
+
+  bool get _hasPhoto =>
+      _newPhoto != null || (!_removePhoto && s?.photoPath != null);
+
+  bool get _hasAadhaar =>
+      _newAadhaar != null || (!_removeAadhaar && s?.aadhaarCardPath != null);
+
+  Widget _photoSection() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const FormSection('Photo'),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_newPhoto != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.memory(
+                _newPhoto!,
+                key: const Key('newPhotoPreview'),
+                width: 84,
+                height: 105,
+                fit: BoxFit.cover,
+              ),
+            )
+          else
+            StudentAvatar(
+              name: _name.text,
+              photoPath: _removePhoto ? null : s?.photoPath,
+              size: 96,
+              onTap: (bytes) => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      PictureViewScreen(title: _name.text, bytes: bytes),
+                ),
+              ),
+            ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                OutlinedButton.icon(
+                  key: const Key('takePhoto'),
+                  onPressed: _busy
+                      ? null
+                      : () => _pickPhoto(ImageSource.camera),
+                  icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                  label: const Text('Take photo'),
+                ),
+                OutlinedButton.icon(
+                  key: const Key('choosePhoto'),
+                  onPressed: _busy
+                      ? null
+                      : () => _pickPhoto(ImageSource.gallery),
+                  icon: const Icon(Icons.photo_library_outlined, size: 18),
+                  label: const Text('Choose from gallery'),
+                ),
+                if (_hasPhoto)
+                  TextButton(
+                    key: const Key('removePhoto'),
+                    onPressed: _busy
+                        ? null
+                        : () => setState(() {
+                            _newPhoto = null;
+                            _removePhoto = s?.photoPath != null;
+                          }),
+                    child: const Text('Remove photo'),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      const Padding(
+        padding: EdgeInsets.only(top: 6, bottom: 14),
+        child: Text(
+          'The photo is cropped to passport size and saved when you save the '
+          'student. It is printed on the agreement and I-cards.',
+          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+        ),
+      ),
+    ],
+  );
+
+  Widget _aadhaarSection() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const FormSection('Aadhaar card'),
+      Text(
+        _newAadhaar != null
+            ? (_newAadhaar!.isPdf
+                  ? 'A PDF is chosen (saved when you save the student).'
+                  : 'A picture is chosen (saved when you save the student).')
+            : _hasAadhaar
+            ? 'The Aadhaar card is saved.'
+            : 'No Aadhaar card saved.',
+        key: const Key('aadhaarState'),
+      ),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: [
+          OutlinedButton(
+            key: const Key('takeScan'),
+            onPressed: _busy ? null : () => _pickScan(ImageSource.camera),
+            child: const Text('Take photo'),
+          ),
+          OutlinedButton(
+            key: const Key('chooseScan'),
+            onPressed: _busy ? null : () => _pickScan(ImageSource.gallery),
+            child: const Text('Choose image'),
+          ),
+          OutlinedButton(
+            key: const Key('choosePdf'),
+            onPressed: _busy ? null : _pickPdf,
+            child: const Text('Choose PDF'),
+          ),
+          if (_hasAadhaar)
+            OutlinedButton(
+              key: const Key('viewAadhaar'),
+              onPressed: _busy ? null : _viewAadhaar,
+              child: const Text('View'),
+            ),
+          if (_hasAadhaar)
+            TextButton(
+              key: const Key('removeAadhaar'),
+              onPressed: _busy
+                  ? null
+                  : () => setState(() {
+                      _newAadhaar = null;
+                      _removeAadhaar = s?.aadhaarCardPath != null;
+                    }),
+              child: const Text('Remove'),
+            ),
+        ],
+      ),
+      const Padding(
+        padding: EdgeInsets.only(top: 6, bottom: 14),
+        child: Text(
+          'A picture or a PDF, at most 5 MB. Only the signed in admin can '
+          'open it.',
+          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+        ),
+      ),
+    ],
+  );
 
   void _showMessage(String message) {
     if (!mounted) return;
@@ -183,6 +433,7 @@ class _StudentEditScreenState extends State<StudentEditScreen> {
               key: const Key('studentInfo'),
               style: const TextStyle(color: AppColors.textMuted),
             ),
+            _photoSection(),
             const FormSection('Student'),
             _text('studentName', 'Student name', _name, 150, required: true),
             FormDropdown<String>(
@@ -339,6 +590,7 @@ class _StudentEditScreenState extends State<StudentEditScreen> {
                 style: TextStyle(color: AppColors.textMuted, fontSize: 12),
               ),
             ),
+            _aadhaarSection(),
             FormMessage(_message, key: const Key('studentMessage')),
             SaveButton(
               key: const Key('saveStudent'),

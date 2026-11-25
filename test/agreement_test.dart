@@ -2,12 +2,14 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hostel_mobile_app/data/agreement_repository.dart';
 import 'package:hostel_mobile_app/data/allocation_repository.dart';
 import 'package:hostel_mobile_app/data/billing_repository.dart';
 import 'package:hostel_mobile_app/data/college_repository.dart';
 import 'package:hostel_mobile_app/data/room_repository.dart';
+import 'package:hostel_mobile_app/data/student_file_repository.dart';
 import 'package:hostel_mobile_app/data/student_repository.dart';
 import 'package:hostel_mobile_app/models/agreement.dart';
 import 'package:hostel_mobile_app/models/allocation.dart';
@@ -21,6 +23,7 @@ import 'package:hostel_mobile_app/services/agreement_pdf.dart';
 import 'package:hostel_mobile_app/services/agreement_service.dart';
 import 'package:hostel_mobile_app/services/agreement_signature_service.dart';
 import 'package:hostel_mobile_app/services/document_share.dart';
+import 'package:hostel_mobile_app/services/student_file_service.dart';
 import 'package:hostel_mobile_app/services/validators.dart';
 import 'package:hostel_mobile_app/theme/app_theme.dart';
 import 'package:hostel_mobile_app/widgets/signature_pad.dart';
@@ -443,6 +446,36 @@ Phones {StudentMobile} {ParentMobile} at {CollegeName} of {HostelName}. {Unknown
     });
   });
 
+  group('photo', () {
+    test('the student photo goes on the agreement', () async {
+      final photo = Uint8List.fromList(
+        img.encodeJpg(img.Image(width: 480, height: 600)),
+      );
+      students[0] = Student(
+        studentId: 1,
+        hostelId: 1,
+        studentName: 'Aman Sharma',
+        gender: 'Male',
+        admissionDate: DateTime(2026, 7, 1),
+        photoPath: 'S1_photo_1.jpg',
+      );
+      addTearDown(
+        () => students[0] = student(1, 'Aman Sharma', father: 'Rakesh Sharma'),
+      );
+      StudentFileService.clearCache();
+      StudentFileRepository.useInstance(_OnePhoto(photo));
+      addTearDown(() => StudentFileRepository.useInstance(null));
+      final d = await AgreementService.prepare(hostel, 1, today);
+      expect(d.photo, photo);
+      final bytes = await AgreementPdf.build(d);
+      expect(latin1.decode(bytes.sublist(0, 4)), '%PDF');
+      // Without the photo file the agreement is still made.
+      StudentFileService.clearCache();
+      StudentFileRepository.useInstance(_OnePhoto(null));
+      expect((await AgreementService.prepare(hostel, 1, today)).photo, isNull);
+    });
+  });
+
   group('PDF', () {
     test(
       'a real PDF, over more than one page, with a bad image ignored',
@@ -631,4 +664,12 @@ Phones {StudentMobile} {ParentMobile} at {CollegeName} of {HostelName}. {Unknown
     c.clear();
     expect(await c.toPng(), isNull);
   });
+}
+
+class _OnePhoto extends StudentFileRepository {
+  _OnePhoto(this.photo);
+  final Uint8List? photo;
+  @override
+  Future<Uint8List> download(String name) async =>
+      photo ?? (throw Exception('missing'));
 }
