@@ -27,10 +27,13 @@ CREATE TABLE IF NOT EXISTS public.agreement_signing (
         REFERENCES public.student (student_id) ON DELETE CASCADE
 );
 
+-- Firebase tokens have no "role" claim, so Supabase treats the app's requests
+-- as role anon; "anon, authenticated" covers that (as in script 002). The
+-- check inside is_hostel_admin() is what decides who gets in.
 ALTER TABLE public.agreement_signing ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS hostel_admin_all ON public.agreement_signing;
 CREATE POLICY hostel_admin_all ON public.agreement_signing
-    FOR ALL TO authenticated
+    FOR ALL TO anon, authenticated
     USING (public.is_hostel_admin())
     WITH CHECK (public.is_hostel_admin());
 
@@ -43,7 +46,7 @@ ON CONFLICT (id) DO UPDATE
 
 DROP POLICY IF EXISTS hostel_admin_signatures ON storage.objects;
 CREATE POLICY hostel_admin_signatures ON storage.objects
-    FOR ALL TO authenticated
+    FOR ALL TO anon, authenticated
     USING (bucket_id = 'signatures' AND public.is_hostel_admin())
     WITH CHECK (bucket_id = 'signatures' AND public.is_hostel_admin());
 
