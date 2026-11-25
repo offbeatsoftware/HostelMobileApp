@@ -139,7 +139,8 @@ class _StudentEditScreenState extends State<StudentEditScreen> {
         ),
         today: widget.today,
       );
-      await _saveFiles(id);
+      final problem = await _saveFiles(id);
+      if (problem != null && mounted) await _filesFailed(problem);
       if (mounted) Navigator.of(context).pop(true);
     } on ValidationException catch (e) {
       _showMessage(e.message);
@@ -148,29 +149,49 @@ class _StudentEditScreenState extends State<StudentEditScreen> {
     }
   }
 
-  /// Uploads the photo and Aadhaar card. The student is already saved, so a
-  /// failed upload is reported without keeping the form open (saving again
-  /// would add the student twice).
-  Future<void> _saveFiles(int studentId) async {
+  /// Uploads the photo and Aadhaar card; returns why it failed, or null.
+  /// The student is already saved, so a failure is reported without keeping
+  /// the form open (saving again would add the student twice).
+  Future<String?> _saveFiles(int studentId) async {
     final changes = StudentFileChanges(
       newPhoto: _newPhoto,
       removePhoto: _removePhoto,
       newAadhaar: _newAadhaar,
       removeAadhaar: _removeAadhaar,
     );
-    if (changes.isEmpty) return;
+    if (changes.isEmpty) return null;
     try {
       await StudentFileService.apply(studentId, s, changes);
-    } catch (e) {
-      if (mounted) {
-        showToast(
-          context,
-          'The student was saved, but the photo or Aadhaar card could not '
-          'be uploaded. Open the student and add it again. $e',
-        );
-      }
+      return null;
+    } catch (e, stack) {
+      debugPrint('Saving the student files failed: $e\n$stack');
+      return StudentFileService.describeError(e);
     }
   }
+
+  /// Tells the admin the student was saved but the files were not. A dialog,
+  /// because the list screen shows its own message as soon as this one
+  /// closes, which would hide a toast.
+  Future<void> _filesFailed(String why) => showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('The photo was not saved'),
+      content: SingleChildScrollView(
+        child: Text(
+          'The student was saved, but the photo or Aadhaar card could not '
+          'be uploaded. Open the student and add it again.\n\n$why',
+          key: const Key('fileProblem'),
+        ),
+      ),
+      actions: [
+        TextButton(
+          key: const Key('fileProblemOk'),
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('OK'),
+        ),
+      ],
+    ),
+  );
 
   /// Runs a file choice; a refused file is shown as the form's message.
   Future<void> _choose(Future<void> Function() pick) async {

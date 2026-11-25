@@ -16,6 +16,7 @@ import 'package:hostel_mobile_app/theme/app_theme.dart';
 import 'package:hostel_mobile_app/widgets/student_avatar.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show StorageException;
 
 Uint8List jpg(int w, int h) =>
     Uint8List.fromList(img.encodeJpg(img.Image(width: w, height: h)));
@@ -350,6 +351,40 @@ void main() {
     });
   });
 
+  group('error words', () {
+    test('storage problems are explained', () {
+      expect(
+        StudentFileService.describeError(
+          const StorageException('Bucket not found', statusCode: '404'),
+        ),
+        contains('Run supabase/017_student_files.sql'),
+      );
+      expect(
+        StudentFileService.describeError(
+          const StorageException(
+            'new row violates row-level security policy',
+            statusCode: '403',
+          ),
+        ),
+        contains('did not accept the admin login'),
+      );
+      expect(
+        StudentFileService.describeError(
+          Exception('SocketException: Failed host lookup'),
+        ),
+        contains('no internet connection'),
+      );
+      expect(
+        StudentFileService.describeError(Exception('odd')),
+        contains('odd'),
+      );
+      expect(
+        StudentFileService.describeError(const ValidationException('Mine.')),
+        'Mine.',
+      );
+    });
+  });
+
   group('student form', () {
     late SavingStudents db;
 
@@ -517,14 +552,32 @@ void main() {
       await open(tester);
       await tester.tap(find.byKey(const Key('choosePhoto')));
       await tester.pumpAndSettle();
-      await fillAndSave(tester);
+      await tester.enterText(find.byKey(const Key('studentName')), 'Ravi');
+      await tester.tap(find.byKey(const Key('studentGender')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Male').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('saveStudent')));
+      // The save button still spins behind the dialog, so settle by time.
+      await tester.pump(const Duration(seconds: 1));
       expect(db.saved.length, 1);
+      // A dialog (a toast would be hidden by the list's "Student saved.").
+      expect(find.byKey(const Key('fileProblem')), findsOneWidget);
       expect(
         find.textContaining(
           'The student was saved, but the photo or Aadhaar card could not be uploaded',
         ),
         findsOneWidget,
       );
+      expect(find.textContaining('offline'), findsOneWidget);
+      expect(
+        find.byKey(const Key('go')),
+        findsNothing,
+        reason: 'open until OK',
+      );
+      await tester.tap(find.byKey(const Key('fileProblemOk')));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 1));
       expect(find.byKey(const Key('go')), findsOneWidget);
     });
   });

@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/student_file_repository.dart';
 import '../models/student.dart';
@@ -203,6 +204,36 @@ class StudentFileService {
       );
     }
     return AadhaarFile(out, '.jpg');
+  }
+
+  /// Why a save of the files failed, in words the admin can act on.
+  static String describeError(Object error) {
+    if (error is ValidationException) return error.message;
+    final text = error is StorageException
+        ? '${error.message} (${error.statusCode ?? 'no status'})'
+        : '$error';
+    final lower = text.toLowerCase();
+    if (lower.contains('bucket not found') || lower.contains('404')) {
+      return 'The storage folder "student-files" was not found. Run '
+          'supabase/017_student_files.sql in the Supabase SQL Editor. '
+          '[$text]';
+    }
+    if (lower.contains('row-level security') ||
+        lower.contains('unauthorized') ||
+        lower.contains('403') ||
+        lower.contains('401')) {
+      return 'Supabase Storage did not accept the admin login for '
+          '"student-files". Run supabase/017_student_files.sql again and '
+          'check that you are signed in as the hostel admin. [$text]';
+    }
+    if (lower.contains('socket') ||
+        lower.contains('network') ||
+        lower.contains('connection') ||
+        lower.contains('timeout')) {
+      return 'There is no internet connection, or it dropped. Try again. '
+          '[$text]';
+    }
+    return text;
   }
 
   // ---- choosing files ----
