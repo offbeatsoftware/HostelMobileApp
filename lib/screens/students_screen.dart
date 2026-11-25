@@ -12,6 +12,7 @@ import '../widgets/common_widgets.dart';
 import '../widgets/student_avatar.dart';
 import 'agreement_actions.dart';
 import 'agreement_text_screen.dart';
+import 'id_card_actions.dart';
 import 'student_edit_screen.dart';
 
 /// Students of the selected hostel (the desktop Students screen): Active and
@@ -41,6 +42,9 @@ class _StudentsScreenState extends State<StudentsScreen> {
   String? _course;
   String? _className;
   late Future<_StudentsData> _data;
+
+  /// Students chosen (long press) for I-cards.
+  final _selected = <int>{};
 
   @override
   void initState() {
@@ -297,135 +301,199 @@ class _StudentsScreenState extends State<StudentsScreen> {
                         (inactive ? StudentStatus.left : StudentStatus.active),
                   )
                   .length;
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Students'),
-            actions: [
-              IconButton(
-                key: const Key('agreementText'),
-                tooltip: 'Agreement text',
-                icon: const Icon(Icons.description_outlined),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const AgreementTextScreen(),
-                  ),
-                ),
+        final selecting = _selected.isNotEmpty;
+        return PopScope(
+          canPop: !selecting,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop) setState(_selected.clear);
+          },
+          child: Scaffold(
+            appBar: AppBar(
+              leading: selecting
+                  ? IconButton(
+                      key: const Key('clearSelection'),
+                      tooltip: 'Cancel selection',
+                      icon: const Icon(Icons.close),
+                      onPressed: () => setState(_selected.clear),
+                    )
+                  : null,
+              title: Text(
+                selecting ? '${_selected.length} selected' : 'Students',
               ),
-            ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(28),
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  widget.hostel.hostelName,
-                  style: const TextStyle(color: Colors.white70),
-                ),
-              ),
-            ),
-          ),
-          // Like the desktop: students are added on the Active tab.
-          floatingActionButton: data == null || _inactiveTab
-              ? null
-              : FloatingActionButton.extended(
-                  key: const Key('addStudent'),
-                  backgroundColor: AppColors.terracotta,
-                  foregroundColor: Colors.white,
-                  onPressed: () => _edit(data.colleges),
-                  icon: const Icon(Icons.person_add_alt_1),
-                  label: const Text('Add student'),
-                ),
-          body: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: SegmentedButton<bool>(
-                    key: const Key('studentTabs'),
-                    showSelectedIcon: false,
-                    segments: [
-                      ButtonSegment(
-                        value: false,
-                        label: Text(
-                          'Active (${inTab(false)})',
-                          key: const Key('tabActive'),
-                        ),
-                      ),
-                      ButtonSegment(
-                        value: true,
-                        label: Text(
-                          'Inactive (${inTab(true)})',
-                          key: const Key('tabInactive'),
-                        ),
-                      ),
-                    ],
-                    selected: {_inactiveTab},
-                    style: SegmentedButton.styleFrom(
-                      selectedBackgroundColor: AppColors.terracotta,
-                      selectedForegroundColor: Colors.white,
-                    ),
-                    onSelectionChanged: (v) =>
-                        setState(() => _inactiveTab = v.first),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        key: const Key('studentSearch'),
-                        controller: _search,
-                        onChanged: (_) => setState(() {}),
-                        decoration: InputDecoration(
-                          hintText: 'Search name or mobile',
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: _search.text.isEmpty
-                              ? null
-                              : IconButton(
-                                  tooltip: 'Clear',
-                                  icon: const Icon(Icons.clear),
-                                  onPressed: () => setState(_search.clear),
+              actions: selecting
+                  ? [
+                      IconButton(
+                        key: const Key('selectAll'),
+                        tooltip: 'Select all shown',
+                        icon: const Icon(Icons.select_all),
+                        onPressed: data == null
+                            ? null
+                            : () => setState(
+                                () => _selected.addAll(
+                                  StudentService.filter(
+                                    data.students,
+                                    _inactiveTab,
+                                    _filter,
+                                  ).map((s) => s.studentId),
                                 ),
-                          filled: true,
-                          fillColor: Colors.white,
-                          isDense: true,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(24),
+                              ),
+                      ),
+                      IconButton(
+                        key: const Key('idCardAction'),
+                        tooltip: 'Student I-cards',
+                        icon: const Icon(Icons.badge_outlined),
+                        onPressed: () => _makeCards(transport: false),
+                      ),
+                      IconButton(
+                        key: const Key('transportCardAction'),
+                        tooltip: 'Transport I-cards',
+                        icon: const Icon(Icons.directions_bus_outlined),
+                        onPressed: () => _makeCards(transport: true),
+                      ),
+                    ]
+                  : [
+                      IconButton(
+                        key: const Key('agreementText'),
+                        tooltip: 'Agreement text',
+                        icon: const Icon(Icons.description_outlined),
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const AgreementTextScreen(),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Badge(
-                      isLabelVisible: filterCount > 0,
-                      label: Text('$filterCount'),
-                      backgroundColor: AppColors.terracotta,
-                      child: IconButton.outlined(
-                        key: const Key('openFilters'),
-                        tooltip: 'Filter by college, course or class',
-                        icon: const Icon(Icons.filter_list),
-                        onPressed: data == null
-                            ? null
-                            : () => _openFilters(data),
+                    ],
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(28),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    widget.hostel.hostelName,
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                ),
+              ),
+            ),
+            // Like the desktop: students are added on the Active tab.
+            floatingActionButton: data == null || _inactiveTab
+                ? null
+                : FloatingActionButton.extended(
+                    key: const Key('addStudent'),
+                    backgroundColor: AppColors.terracotta,
+                    foregroundColor: Colors.white,
+                    onPressed: () => _edit(data.colleges),
+                    icon: const Icon(Icons.person_add_alt_1),
+                    label: const Text('Add student'),
+                  ),
+            body: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<bool>(
+                      key: const Key('studentTabs'),
+                      showSelectedIcon: false,
+                      segments: [
+                        ButtonSegment(
+                          value: false,
+                          label: Text(
+                            'Active (${inTab(false)})',
+                            key: const Key('tabActive'),
+                          ),
+                        ),
+                        ButtonSegment(
+                          value: true,
+                          label: Text(
+                            'Inactive (${inTab(true)})',
+                            key: const Key('tabInactive'),
+                          ),
+                        ),
+                      ],
+                      selected: {_inactiveTab},
+                      style: SegmentedButton.styleFrom(
+                        selectedBackgroundColor: AppColors.terracotta,
+                        selectedForegroundColor: Colors.white,
                       ),
+                      onSelectionChanged: (v) =>
+                          setState(() => _inactiveTab = v.first),
                     ),
-                  ],
+                  ),
                 ),
-              ),
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: _reload,
-                  child: _buildList(snapshot),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          key: const Key('studentSearch'),
+                          controller: _search,
+                          onChanged: (_) => setState(() {}),
+                          decoration: InputDecoration(
+                            hintText: 'Search name or mobile',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _search.text.isEmpty
+                                ? null
+                                : IconButton(
+                                    tooltip: 'Clear',
+                                    icon: const Icon(Icons.clear),
+                                    onPressed: () => setState(_search.clear),
+                                  ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            isDense: true,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Badge(
+                        isLabelVisible: filterCount > 0,
+                        label: Text('$filterCount'),
+                        backgroundColor: AppColors.terracotta,
+                        child: IconButton.outlined(
+                          key: const Key('openFilters'),
+                          tooltip: 'Filter by college, course or class',
+                          icon: const Icon(Icons.filter_list),
+                          onPressed: data == null
+                              ? null
+                              : () => _openFilters(data),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _reload,
+                    child: _buildList(snapshot),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
     );
   }
+
+  Future<void> _makeCards({required bool transport}) async {
+    final ids = _selected.toList();
+    await IdCardActions.make(
+      context,
+      widget.hostel,
+      ids,
+      transport: transport,
+      today: widget.today,
+    );
+    if (mounted) setState(_selected.clear);
+  }
+
+  void _toggle(int id) => setState(() {
+    if (!_selected.remove(id)) _selected.add(id);
+  });
 
   Widget _buildList(AsyncSnapshot<_StudentsData> snapshot) {
     if (snapshot.connectionState != ConnectionState.done) {
@@ -478,6 +546,23 @@ class _StudentsScreenState extends State<StudentsScreen> {
         final s = students[i - 1];
         return _StudentCard(
           student: s,
+          selecting: _selected.isNotEmpty,
+          selected: _selected.contains(s.studentId),
+          onSelect: () => _toggle(s.studentId),
+          onIdCard: () => IdCardActions.make(
+            context,
+            widget.hostel,
+            [s.studentId],
+            transport: false,
+            today: widget.today,
+          ),
+          onTransportCard: () => IdCardActions.make(
+            context,
+            widget.hostel,
+            [s.studentId],
+            transport: true,
+            today: widget.today,
+          ),
           onEdit: () => _edit(data.colleges, s),
           onDelete: () => _delete(s),
           onMakeActive: () => _makeActive(s),
@@ -509,7 +594,19 @@ class _StudentCard extends StatelessWidget {
     required this.onDeletePermanently,
     required this.onAgreementPdf,
     required this.onSignAgreement,
+    required this.selecting,
+    required this.selected,
+    required this.onSelect,
+    required this.onIdCard,
+    required this.onTransportCard,
   });
+
+  /// Some students are chosen for I-cards: a tap chooses or unchooses.
+  final bool selecting;
+  final bool selected;
+  final VoidCallback onSelect;
+  final VoidCallback onIdCard;
+  final VoidCallback onTransportCard;
 
   final Student student;
   final VoidCallback onEdit;
@@ -535,26 +632,41 @@ class _StudentCard extends StatelessWidget {
       key: Key('student_${s.studentId}'),
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
+      shape: selected
+          ? RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: AppColors.terracotta, width: 2),
+            )
+          : null,
       child: InkWell(
-        onTap: onEdit,
+        onTap: selecting ? onSelect : onEdit,
+        onLongPress: onSelect,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 4, 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              StudentAvatar(
-                name: s.studentName,
-                photoPath: s.photoPath,
-                placeholderColor: s.isActive
-                    ? AppColors.terracotta
-                    : AppColors.tileDisabled,
-                onTap: (bytes) => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        PictureViewScreen(title: s.studentName, bytes: bytes),
+              if (selected)
+                const CircleAvatar(
+                  key: Key('studentSelected'),
+                  backgroundColor: AppColors.terracotta,
+                  foregroundColor: Colors.white,
+                  child: Icon(Icons.check),
+                )
+              else
+                StudentAvatar(
+                  name: s.studentName,
+                  photoPath: s.photoPath,
+                  placeholderColor: s.isActive
+                      ? AppColors.terracotta
+                      : AppColors.tileDisabled,
+                  onTap: (bytes) => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          PictureViewScreen(title: s.studentName, bytes: bytes),
+                    ),
                   ),
                 ),
-              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -612,6 +724,8 @@ class _StudentCard extends StatelessWidget {
                   'purge' => onDeletePermanently(),
                   'agreement' => onAgreementPdf(),
                   'sign' => onSignAgreement(),
+                  'idcard' => onIdCard(),
+                  'transport' => onTransportCard(),
                   _ => onMakeActive(),
                 },
                 itemBuilder: (_) => [
@@ -626,6 +740,11 @@ class _StudentCard extends StatelessWidget {
                   const PopupMenuItem(
                     value: 'sign',
                     child: Text('Sign Agreement'),
+                  ),
+                  const PopupMenuItem(value: 'idcard', child: Text('I-Card')),
+                  const PopupMenuItem(
+                    value: 'transport',
+                    child: Text('Transport I-Card'),
                   ),
                   if (s.isActive)
                     const PopupMenuItem(value: 'delete', child: Text('Delete'))
