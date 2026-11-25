@@ -13,6 +13,7 @@ import 'agreement_defaults.dart';
 import 'agreement_signature_service.dart';
 import 'date_format.dart';
 import 'money.dart';
+import 'student_file_service.dart';
 import 'report_service.dart';
 import 'validators.dart';
 
@@ -193,6 +194,7 @@ class AgreementService {
       student.hostelId,
     );
     return AgreementDocument(
+      photo: await StudentFileService.load(student.photoPath),
       studentName: student.studentName,
       parentName: _t(student.fatherName).isNotEmpty
           ? _t(student.fatherName)

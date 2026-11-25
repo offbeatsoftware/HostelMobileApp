@@ -30,6 +30,8 @@ class Student {
     this.status = StudentStatus.active,
     this.remarks,
     this.collegeName,
+    this.photoPath,
+    this.aadhaarCardPath,
     this.roomNumber,
   });
 
@@ -60,6 +62,11 @@ class Student {
 
   /// Read only: the college's name and the room the student is in now.
   final String? collegeName;
+
+  /// The names of the student's photo and Aadhaar card files in Storage
+  /// (supabase/017_student_files.sql), or null.
+  final String? photoPath;
+  final String? aadhaarCardPath;
   final String? roomNumber;
 
   bool get isActive => status == StudentStatus.active;
@@ -68,6 +75,11 @@ class Student {
   String get aadhaarMasked {
     final a = aadhaarNumber ?? '';
     return a.length == 12 ? 'XXXX XXXX ${a.substring(8)}' : '';
+  }
+
+  static String? _name(Object? value) {
+    final text = (value as String?)?.trim() ?? '';
+    return text.isEmpty ? null : text;
   }
 
   static DateTime? _date(Object? value) =>
@@ -97,6 +109,8 @@ class Student {
     status: map['status'] as String,
     remarks: map['remarks'] as String?,
     collegeName: map['college_name'] as String?,
+    photoPath: _name(map['photo_path']),
+    aadhaarCardPath: _name(map['aadhaar_card_path']),
     roomNumber: map['room_number'] as String?,
   );
 }

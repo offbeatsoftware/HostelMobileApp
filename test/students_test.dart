@@ -339,7 +339,7 @@ void main() {
 
   group('Students screen', () {
     Future<void> openStudents(WidgetTester tester) async {
-      tester.view.physicalSize = const Size(1080, 5400); // every card on screen
+      tester.view.physicalSize = const Size(1080, 8400); // every card on screen
       tester.view.devicePixelRatio = 3;
       addTearDown(tester.view.reset);
       await tester.pumpWidget(const HostelMobileApp());

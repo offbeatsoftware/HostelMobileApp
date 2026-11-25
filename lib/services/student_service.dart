@@ -1,6 +1,7 @@
 import '../data/student_repository.dart';
 import '../models/student.dart';
 import 'agreement_signature_service.dart';
+import 'student_file_service.dart';
 import 'date_format.dart';
 import 'validators.dart';
 
@@ -234,8 +235,12 @@ class StudentService {
     );
   }
 
-  static Future<void> delete(int studentId) =>
-      StudentRepository.instance.delete(studentId);
+  /// Deletes a student who has no records; their photo and Aadhaar card
+  /// files go too (pass [student] so they can be found).
+  static Future<void> delete(int studentId, {Student? student}) async {
+    await StudentRepository.instance.delete(studentId);
+    if (student != null) await StudentFileService.deleteFiles(student);
+  }
 
   static Future<void> makeActive(int studentId) =>
       StudentRepository.instance.makeActive(studentId);
@@ -257,6 +262,7 @@ class StudentService {
     }
     Validators.checkLength(why, 255, 'Reason');
     await StudentRepository.instance.deletePermanently(student.studentId, why);
+    await StudentFileService.deleteFiles(student);
     // The signatures are files; the database row went with the student.
     try {
       await AgreementSignatureService.deleteForStudent(student.studentId);

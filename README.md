@@ -35,7 +35,8 @@ One time setup:
 16. Run `supabase/015_email_sending.sql` (sending emails from the phone).
 17. Deploy the `send-email` function (see "Sending emails from the phone" below).
 18. Run `supabase/016_agreement.sql` (student agreement and its signatures).
-19. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
+19. Run `supabase/017_student_files.sql` (student photos and Aadhaar cards).
+20. Put the project URL and publishable key in `lib/config/supabase_config.dart`.
 
 ## Sending emails from the phone
 

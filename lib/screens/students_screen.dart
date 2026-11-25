@@ -9,6 +9,7 @@ import '../services/student_service.dart';
 import '../services/validators.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
+import '../widgets/student_avatar.dart';
 import 'agreement_actions.dart';
 import 'agreement_text_screen.dart';
 import 'student_edit_screen.dart';
@@ -110,7 +111,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
       return;
     }
     await _run(
-      () => StudentService.delete(s.studentId),
+      () => StudentService.delete(s.studentId, student: s),
       'Student deleted.',
       'The student could not be deleted.',
     );
@@ -541,13 +542,17 @@ class _StudentCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                backgroundColor: s.isActive
+              StudentAvatar(
+                name: s.studentName,
+                photoPath: s.photoPath,
+                placeholderColor: s.isActive
                     ? AppColors.terracotta
                     : AppColors.tileDisabled,
-                foregroundColor: Colors.white,
-                child: Text(
-                  s.studentName.isEmpty ? '?' : s.studentName[0].toUpperCase(),
+                onTap: (bytes) => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        PictureViewScreen(title: s.studentName, bytes: bytes),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
